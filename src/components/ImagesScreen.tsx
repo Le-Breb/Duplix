@@ -22,13 +22,19 @@ interface ImagesScreenProps {
   onCloseConfirm: () => void
   onCommit: () => void
   committing: boolean
+  onCommitGroup: (group: SimilarImageGroup) => void
+  committingGroupId: string | null
   lastResult: { trashedCount: number; reclaimedBytes: number } | null
   onDismissResult: () => void
 }
 
-function emptyUi(): GroupUiState {
-  return { keepIndex: null, skipped: false, open: false }
-}
+// A single shared instance, not a function that allocates a fresh object per
+// call: useVirtualizer re-renders this component on every scroll frame, and
+// every visible ImageGroupCard was getting a *new* fallback ui object each
+// time (for any group the user hasn't touched yet), which alone defeats any
+// memoization downstream — React.memo can't tell "nothing changed" from
+// "here's a different-looking object that happens to have the same values."
+const EMPTY_UI: GroupUiState = { keepIndex: null, skipped: false, open: false }
 
 export function ImagesScreen({
   groups,
@@ -46,6 +52,8 @@ export function ImagesScreen({
   onCloseConfirm,
   onCommit,
   committing,
+  onCommitGroup,
+  committingGroupId,
   lastResult,
   onDismissResult,
 }: ImagesScreenProps) {
@@ -254,9 +262,11 @@ export function ImagesScreen({
                 >
                   <ImageGroupCard
                     group={g}
-                    ui={groupUi[g.id] ?? emptyUi()}
-                    onToggleSkip={() => onToggleSkip(g.id)}
-                    onSetKeepIndex={(i) => onSetKeepIndex(g.id, i)}
+                    ui={groupUi[g.id] ?? EMPTY_UI}
+                    onToggleSkip={onToggleSkip}
+                    onSetKeepIndex={onSetKeepIndex}
+                    onCommitGroup={onCommitGroup}
+                    committing={committingGroupId === g.id}
                   />
                 </div>
               )

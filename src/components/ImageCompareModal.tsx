@@ -11,6 +11,8 @@ interface ImageCompareModalProps {
   commonDir: string
   onSetKeepIndex: (index: number | null) => void
   onToggleSkip: () => void
+  onCommitNow: () => void
+  committing: boolean
   onClose: () => void
 }
 
@@ -31,7 +33,16 @@ function columnsFor(n: number): number {
 // ancestor makes `position: fixed` descendants fixed relative to *that*
 // ancestor instead of the viewport — without the portal, this "full-screen"
 // overlay would only ever cover that one row's box.
-export function ImageCompareModal({ group, ui, commonDir, onSetKeepIndex, onToggleSkip, onClose }: ImageCompareModalProps) {
+export function ImageCompareModal({
+  group,
+  ui,
+  commonDir,
+  onSetKeepIndex,
+  onToggleSkip,
+  onCommitNow,
+  committing,
+  onClose,
+}: ImageCompareModalProps) {
   const [zoomedIndex, setZoomedIndex] = useState<number | null>(null)
   const keepIndex = ui.keepIndex ?? defaultKeepIndex(group.files)
   const n = group.files.length
@@ -99,6 +110,14 @@ export function ImageCompareModal({ group, ui, commonDir, onSetKeepIndex, onTogg
             style={{ color: 'rgba(255,255,255,0.7)' }}
           >
             {ui.skipped ? 'Include this set' : 'Keep all in this set'}
+          </button>
+          <button
+            onClick={onCommitNow}
+            disabled={ui.skipped || committing}
+            className="whitespace-nowrap rounded-md px-2.5 py-1 text-xs disabled:cursor-default disabled:opacity-50"
+            style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
+          >
+            {committing ? 'Trashing…' : 'Trash this set now'}
           </button>
           <button
             onClick={onClose}

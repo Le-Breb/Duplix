@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import type { SimilarImageGroup } from '../lib/api'
 import { commonDirPrefix, fileName, formatBytes } from '../lib/format'
 import { defaultKeepIndex, type GroupUiState } from '../lib/groups'
@@ -8,8 +8,14 @@ import { ImageCompareModal } from './ImageCompareModal'
 interface ImageGroupCardProps {
   group: SimilarImageGroup
   ui: GroupUiState
-  onToggleSkip: () => void
-  onSetKeepIndex: (index: number | null) => void
+  // Raw, id-aware handlers rather than already-bound-to-this-group callbacks:
+  // ImagesScreen passes these straight through unwrapped, which is what lets
+  // them stay referentially stable across its scroll-driven re-renders (see
+  // the comment on React.memo below).
+  onToggleSkip: (id: string) => void
+  onSetKeepIndex: (id: string, index: number | null) => void
+  onCommitGroup: (group: SimilarImageGroup) => void
+  committing: boolean
 }
 
 function similarityLabel(maxDistance: number): string {
@@ -24,7 +30,26 @@ function similarityLabel(maxDistance: number): string {
 // "pick which to keep" grid anymore. It used to duplicate the same job at a
 // worse (cropped, tiny) size; now there's exactly one place to look at a
 // group's photos and decide which to keep.
-export function ImageGroupCard({ group, ui, onToggleSkip, onSetKeepIndex }: ImageGroupCardProps) {
+//
+// Wrapped in React.memo: ImagesScreen's group list is virtualized, and
+// useVirtualizer re-renders it on every scroll frame — without memo, every
+// visible row's ImageGroupCard (and its whole subtree, including
+// ImageThumb) would fully re-render 60 times a second while scrolling, for
+// no reason at all, since nothing about any individual group actually
+// changes just because the user scrolled. This only pays off because
+// ImagesScreen was also fixed to pass stable prop references (a shared
+// EMPTY_UI object instead of a freshly-allocated one, and these unwrapped
+// handlers instead of a new closure per row per render) — React.memo's
+// shallow comparison is only as good as the stability of what it's
+// comparing.
+export const ImageGroupCard = memo(function ImageGroupCard({
+  group,
+  ui,
+  onToggleSkip,
+  onSetKeepIndex,
+  onCommitGroup,
+  committing,
+}: ImageGroupCardProps) {
   const [comparing, setComparing] = useState(false)
   const keepIndex = ui.keepIndex ?? defaultKeepIndex(group.files)
   const keptFile = group.files[keepIndex]
@@ -40,7 +65,8 @@ export function ImageGroupCard({ group, ui, onToggleSkip, onSetKeepIndex }: Imag
     >
       <button
         onClick={() => setComparing(true)}
-        className="flex w-full items-center gap-3.5 p-3 px-3.5 text-left hover:brightness-[0.98]"
+        disabled={committing}
+        className="flex w-full items-center gap-3.5 p-3 px-3.5 text-left hover:brightness-[0.98] disabled:cursor-default disabled:opacity-70"
       >
         <div
           className="h-[46px] w-[46px] flex-none overflow-hidden rounded-[5px]"
@@ -73,8 +99,8 @@ export function ImageGroupCard({ group, ui, onToggleSkip, onSetKeepIndex }: Imag
             </div>
           </div>
         )}
-        <div className="text-[11px]" style={{ color: 'var(--accent)' }}>
-          Compare
+        <div className="text-[11px]" style={{ color: committing ? 'var(--ink3)' : 'var(--accent)' }}>
+          {committing ? 'Trashing…' : 'Compare'}
         </div>
       </button>
 
@@ -83,11 +109,13 @@ export function ImageGroupCard({ group, ui, onToggleSkip, onSetKeepIndex }: Imag
           group={group}
           ui={ui}
           commonDir={commonDir}
-          onSetKeepIndex={onSetKeepIndex}
-          onToggleSkip={onToggleSkip}
+          onSetKeepIndex={(i) => onSetKeepIndex(group.id, i)}
+          onToggleSkip={() => onToggleSkip(group.id)}
+          onCommitNow={() => onCommitGroup(group)}
+          committing={committing}
           onClose={() => setComparing(false)}
         />
       )}
     </div>
   )
-}
+})

@@ -264,7 +264,18 @@ the Images tab is opened:
    `relativePath` strips it for display.
 8. **Trashing** reuses the exact same `trash_files` command as the Files
    tab — an image group's "kept" file defaults to `defaultKeepIndex` (same
-   shortest-path/oldest-mtime rule), same as exact-duplicate groups.
+   shortest-path/oldest-mtime rule), same as exact-duplicate groups. There
+   are two ways to trigger it: the header's "Move to Trash…" commits every
+   non-skipped group across the whole list at once (the Files-tab pattern);
+   `ImageCompareModal`'s "Trash this set now" commits just the one group
+   being reviewed, immediately, without touching any other group's
+   selections — for working through a large scan incrementally (review a
+   few groups, trash them, close the app, come back later) rather than
+   needing to get through the entire list in one sitting before anything
+   can be committed. Both call `App.tsx`'s `loadImageGroups` afterward to
+   refresh the list from the cache, so a committed group simply disappears
+   (its "kept" photo usually no longer matches anything, or the group drops
+   below 2 members) rather than needing bespoke local list surgery.
 
 ## SQLite cache
 
@@ -449,6 +460,21 @@ cd src-tauri && cargo check   # type-check the Rust side
   changes. The lesson generalizes: with a scroll-driven re-render in the
   mix, *any* per-render work whose cost scales with total data rather than
   visible data is worth checking, not just the obvious image-loading path.
+- **`ImageGroupCard` is wrapped in `React.memo`, and `ImagesScreen` is
+  written to make that actually work** — the `useMemo` fix above stopped
+  `ImagesScreen`'s own per-render cost, but every *visible* row's
+  `ImageGroupCard` (full subtree, `ImageThumb` included) was still fully
+  re-rendering and reconciling on every scroll frame regardless, since
+  nothing told React those rows hadn't actually changed. `React.memo` is
+  only as good as its props' referential stability, so this required two
+  companion fixes in `ImagesScreen`: a single shared `EMPTY_UI` constant
+  instead of a function that allocated a fresh fallback object per row per
+  render, and passing `onToggleSkip`/`onSetKeepIndex` straight through
+  unwrapped (raw, id-aware signatures the child curries with its own
+  `group.id`) instead of wrapping each in a new per-row closure inside the
+  `.map()`. Both defeat `React.memo`'s shallow prop comparison on their own
+  if left in place — the object literal and the closures look different by
+  reference on every render even when nothing meaningful changed.
 - **Comparing a group's photos is a single unified view, not an inline
   pick-grid plus a separate "compare" modal** — an earlier version had both:
   a small square-cropped inline grid in `ImageGroupCard` for picking which

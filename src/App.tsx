@@ -70,6 +70,7 @@ export default function App() {
   const [showImageConfirm, setShowImageConfirm] = useState(false)
   const [imageCommitting, setImageCommitting] = useState(false)
   const [imageResult, setImageResult] = useState<{ trashedCount: number; reclaimedBytes: number } | null>(null)
+  const [committingGroupId, setCommittingGroupId] = useState<string | null>(null)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -239,6 +240,31 @@ export default function App() {
     }
   }
 
+  // Trashes just one group's non-kept photos immediately, without touching
+  // any other group — for working through a huge scan incrementally across
+  // multiple sessions instead of needing to review every group before
+  // anything can be committed.
+  async function handleCommitGroupNow(group: SimilarImageGroup) {
+    const ui = imageGroupUi[group.id]
+    if (ui?.skipped) return
+    const keepIdx = ui?.keepIndex ?? defaultKeepIndex(group.files)
+    const toTrash = group.files.filter((_, i) => i !== keepIdx).map((f) => f.path)
+    if (toTrash.length === 0) return
+
+    const sizeByPath = new Map(group.files.map((f) => [f.path, f.size]))
+    setCommittingGroupId(group.id)
+    try {
+      const outcome = await trashFiles(toTrash)
+      const reclaimedBytes = outcome.trashed.reduce((sum, p) => sum + (sizeByPath.get(p) ?? 0), 0)
+      setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes })
+      await loadImageGroups(imageThreshold)
+    } catch (e) {
+      setImagesError(String(e))
+    } finally {
+      setCommittingGroupId(null)
+    }
+  }
+
   async function handleCommit() {
     setCommitting(true)
     const sizeByPath = new Map<string, number>()
@@ -348,6 +374,8 @@ export default function App() {
             onCloseConfirm={() => setShowImageConfirm(false)}
             onCommit={handleCommitImages}
             committing={imageCommitting}
+            onCommitGroup={handleCommitGroupNow}
+            committingGroupId={committingGroupId}
             lastResult={imageResult}
             onDismissResult={() => setImageResult(null)}
           />
