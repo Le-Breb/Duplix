@@ -29,6 +29,28 @@ export interface TrashOutcome {
   failed: [string, string][]
 }
 
+export interface SimilarImageFile {
+  path: string
+  size: number
+  mtime: number
+}
+
+export interface SimilarImageGroup {
+  id: string
+  max_distance: number
+  files: SimilarImageFile[]
+}
+
+export interface SimilarImageGroupsResult {
+  groups: SimilarImageGroup[]
+  indexed_count: number
+}
+
+export interface ImageIndexProgress {
+  indexed: number
+  total: number
+}
+
 export function pickFolder(): Promise<string | null> {
   return invoke('pick_folder')
 }
@@ -47,6 +69,30 @@ export function getDuplicateGroups(): Promise<DuplicateGroup[]> {
 
 export function trashFiles(paths: string[]): Promise<TrashOutcome> {
   return invoke('trash_files', { paths })
+}
+
+export function clearCache(): Promise<number> {
+  return invoke('clear_cache')
+}
+
+export function getSimilarImageGroups(maxDistance: number): Promise<SimilarImageGroupsResult> {
+  return invoke('get_similar_image_groups', { maxDistance })
+}
+
+export function getImageThumbnail(path: string): Promise<string> {
+  return invoke('get_image_thumbnail', { path })
+}
+
+export function startImageIndexing(): Promise<void> {
+  return invoke('start_image_indexing')
+}
+
+export function onImageIndexProgress(cb: (p: ImageIndexProgress) => void): Promise<UnlistenFn> {
+  return listen<ImageIndexProgress>('image-index-progress', (e) => cb(e.payload))
+}
+
+export function onImageIndexComplete(cb: (p: ImageIndexProgress) => void): Promise<UnlistenFn> {
+  return listen<ImageIndexProgress>('image-index-complete', (e) => cb(e.payload))
 }
 
 export function onScanProgress(cb: (p: ScanProgress) => void): Promise<UnlistenFn> {

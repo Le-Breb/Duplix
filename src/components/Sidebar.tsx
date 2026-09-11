@@ -1,48 +1,61 @@
+type Tab = 'files' | 'images'
+
 interface SidebarProps {
   isDark: boolean
   onToggleTheme: () => void
+  onOpenSettings: () => void
+  activeTab: Tab
+  onSelectTab: (tab: Tab) => void
 }
 
-export function Sidebar({ isDark, onToggleTheme }: SidebarProps) {
+export function Sidebar({ isDark, onToggleTheme, onOpenSettings, activeTab, onSelectTab }: SidebarProps) {
   return (
     <div
       className="flex w-[68px] flex-none flex-col items-center gap-1 py-3.5 pb-3"
       style={{ background: 'var(--rail)', borderRight: '1px solid var(--line)' }}
     >
-      <div
-        className="flex w-[52px] flex-col items-center gap-1.5 rounded-[7px] py-2 pb-[7px]"
-        style={{
-          background: 'var(--rail-active)',
-          boxShadow: 'inset 0 0 0 1px var(--rail-active-line)',
-        }}
+      <button
+        onClick={() => onSelectTab('files')}
+        className="flex w-[52px] cursor-pointer flex-col items-center gap-1.5 rounded-[7px] py-2 pb-[7px]"
+        style={
+          activeTab === 'files'
+            ? { background: 'var(--rail-active)', boxShadow: 'inset 0 0 0 1px var(--rail-active-line)' }
+            : { background: 'transparent' }
+        }
       >
         <div
           className="h-[15px] w-[15px] rounded-full"
-          style={{ border: '1.6px solid var(--accent)' }}
+          style={{ border: `1.6px solid ${activeTab === 'files' ? 'var(--accent)' : 'var(--ink3)'}` }}
         />
         <div
           className="font-mono text-[8.5px] tracking-[0.08em]"
-          style={{ color: 'var(--accent)' }}
+          style={{ color: activeTab === 'files' ? 'var(--accent)' : 'var(--ink3)' }}
         >
           FILES
         </div>
-      </div>
+      </button>
 
-      <div
-        className="flex w-[52px] flex-col items-center gap-1.5 rounded-[7px] py-2 pb-[7px] opacity-55"
-        title="Near-duplicate photo review — coming in a later version"
+      <button
+        onClick={() => onSelectTab('images')}
+        className="flex w-[52px] cursor-pointer flex-col items-center gap-1.5 rounded-[7px] py-2 pb-[7px]"
+        title="Near-duplicate photo review"
+        style={
+          activeTab === 'images'
+            ? { background: 'var(--rail-active)', boxShadow: 'inset 0 0 0 1px var(--rail-active-line)' }
+            : { background: 'transparent' }
+        }
       >
         <div
           className="h-[15px] w-[15px] rounded-[3px]"
-          style={{ border: '1.6px solid var(--ink3)' }}
+          style={{ border: `1.6px solid ${activeTab === 'images' ? 'var(--accent)' : 'var(--ink3)'}` }}
         />
         <div
           className="font-mono text-[8.5px] tracking-[0.08em]"
-          style={{ color: 'var(--ink3)' }}
+          style={{ color: activeTab === 'images' ? 'var(--accent)' : 'var(--ink3)' }}
         >
           IMAGES
         </div>
-      </div>
+      </button>
 
       <div className="flex-1" />
 
@@ -74,9 +87,10 @@ export function Sidebar({ isDark, onToggleTheme }: SidebarProps) {
         </div>
       </button>
 
-      <div
-        className="flex w-[52px] cursor-default flex-col items-center gap-1.5 rounded-[7px] py-2 pb-[7px] opacity-55"
-        title="Settings — coming in a later version"
+      <button
+        onClick={onOpenSettings}
+        className="flex w-[52px] cursor-pointer flex-col items-center gap-1.5 rounded-[7px] py-2 pb-[7px] hover:opacity-90"
+        style={{ background: 'transparent' }}
       >
         <div
           className="h-[15px] w-[15px] rounded-full"
@@ -88,7 +102,7 @@ export function Sidebar({ isDark, onToggleTheme }: SidebarProps) {
         >
           SETTINGS
         </div>
-      </div>
+      </button>
     </div>
   )
 }

@@ -43,6 +43,10 @@ pub fn run() {
             commands::cancel_scan,
             commands::get_duplicate_groups,
             commands::trash_files,
+            commands::clear_cache,
+            commands::get_similar_image_groups,
+            commands::get_image_thumbnail,
+            commands::start_image_indexing,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
