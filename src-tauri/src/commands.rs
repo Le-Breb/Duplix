@@ -384,20 +384,25 @@ pub fn start_image_indexing(app: AppHandle, state: State<AppState>) -> Result<()
     Ok(())
 }
 
-/// Reads an image file straight from disk and returns a small JPEG thumbnail
-/// as a data URI, so the frontend never needs filesystem read access of its
-/// own — every path comes from our own scan cache.
+/// Reads an image file straight from disk and returns a JPEG preview (no
+/// larger than `max_size` on its longest side) as a data URI, so the
+/// frontend never needs filesystem read access of its own — every path
+/// comes from our own scan cache. Used for both the small grid thumbnails
+/// and the larger comparison-view previews, just with a different
+/// `max_size` — the decode cost is the same either way (resizing down
+/// further is cheap), so one command covers both.
 #[tauri::command]
-pub fn get_image_thumbnail(path: String) -> Result<String, String> {
+pub fn get_image_thumbnail(path: String, max_size: u32) -> Result<String, String> {
     use base64::Engine;
 
+    let max_size = max_size.clamp(32, 2400);
     let img = image::open(&path).map_err(|e| e.to_string())?;
-    let resized = img.resize(220, 220, image::imageops::FilterType::Triangle);
+    let resized = img.resize(max_size, max_size, image::imageops::FilterType::Triangle);
     let rgb = image::DynamicImage::ImageRgb8(resized.to_rgb8());
 
     let mut buf = Vec::new();
-    rgb.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Jpeg)
-        .map_err(|e| e.to_string())?;
+    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 88);
+    rgb.write_with_encoder(encoder).map_err(|e| e.to_string())?;
 
     let encoded = base64::engine::general_purpose::STANDARD.encode(&buf);
     Ok(format!("data:image/jpeg;base64,{encoded}"))

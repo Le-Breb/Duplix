@@ -1,7 +1,9 @@
+import { useMemo, useState } from 'react'
 import type { SimilarImageGroup } from '../lib/api'
-import { formatBytes, formatDate, fileName } from '../lib/format'
+import { commonDirPrefix, fileName, formatBytes, formatDate, relativePath } from '../lib/format'
 import { defaultKeepIndex, type GroupUiState } from '../lib/groups'
 import { ImageThumb } from './ImageThumb'
+import { ImageCompareModal } from './ImageCompareModal'
 
 interface ImageGroupCardProps {
   group: SimilarImageGroup
@@ -20,11 +22,13 @@ function similarityLabel(maxDistance: number): string {
 }
 
 export function ImageGroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepIndex }: ImageGroupCardProps) {
+  const [comparing, setComparing] = useState(false)
   const keepIndex = ui.keepIndex ?? defaultKeepIndex(group.files)
   const keptFile = group.files[keepIndex]
   const reclaim = ui.skipped
     ? 0
     : group.files.reduce((sum, f, i) => (i === keepIndex ? sum : sum + f.size), 0)
+  const commonDir = useMemo(() => commonDirPrefix(group.files.map((f) => f.path)), [group.files])
 
   const keepNewest = () => {
     let best = 0
@@ -84,6 +88,13 @@ export function ImageGroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKee
           <div className="flex items-center gap-3.5 py-2.5 pl-[74px] pr-3.5 text-xs" style={{ color: 'var(--ink3)' }}>
             <div className="flex-1">Pick the photo to keep</div>
             <button
+              onClick={() => setComparing(true)}
+              className="rounded-md px-2 py-[3px] text-xs"
+              style={{ color: 'var(--accent)' }}
+            >
+              Compare full size
+            </button>
+            <button
               onClick={keepNewest}
               className="rounded-md px-2 py-[3px] text-xs"
               style={{ color: 'var(--accent)' }}
@@ -140,12 +151,29 @@ export function ImageGroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKee
                     <div className="mt-0.5 truncate text-[10.5px]" style={{ color: 'var(--ink3)' }}>
                       {formatDate(f.mtime)} · {formatBytes(f.size)}
                     </div>
+                    <div
+                      className="mt-0.5 truncate font-mono text-[10px]"
+                      style={{ color: 'var(--ink4)' }}
+                      title={relativePath(f.path, commonDir)}
+                    >
+                      {relativePath(f.path, commonDir)}
+                    </div>
                   </div>
                 </button>
               )
             })}
           </div>
         </div>
+      )}
+
+      {comparing && (
+        <ImageCompareModal
+          group={group}
+          ui={ui}
+          commonDir={commonDir}
+          onSetKeepIndex={onSetKeepIndex}
+          onClose={() => setComparing(false)}
+        />
       )}
     </div>
   )

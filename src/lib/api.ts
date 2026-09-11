@@ -79,8 +79,8 @@ export function getSimilarImageGroups(maxDistance: number): Promise<SimilarImage
   return invoke('get_similar_image_groups', { maxDistance })
 }
 
-export function getImageThumbnail(path: string): Promise<string> {
-  return invoke('get_image_thumbnail', { path })
+export function getImageThumbnail(path: string, maxSize: number): Promise<string> {
+  return invoke('get_image_thumbnail', { path, maxSize })
 }
 
 export function startImageIndexing(): Promise<void> {

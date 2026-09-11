@@ -21,10 +21,10 @@ function runNext() {
   }
 }
 
-export function requestThumbnail(path: string): Promise<string> {
+export function requestThumbnail(path: string, maxSize: number): Promise<string> {
   return new Promise((resolve, reject) => {
     queue.push(() => {
-      getImageThumbnail(path)
+      getImageThumbnail(path, maxSize)
         .then(resolve, reject)
         .finally(() => {
           active--

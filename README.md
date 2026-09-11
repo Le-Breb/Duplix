@@ -31,8 +31,8 @@ this project up cold.
 | Layer    | Tech                                                                  |
 |----------|-------------------------------------------------------------------------|
 | Shell    | Tauri v2 (Rust backend + native webview window)                       |
-| Backend  | Rust — `rusqlite` (bundled SQLite), `blake3`, `walkdir`, `trash`, `image`, `base64` |
-| Frontend | React 19 + TypeScript, Vite, Tailwind CSS v3                          |
+| Backend  | Rust — `rusqlite` (bundled SQLite), `blake3`, `walkdir`, `trash`, `image`, `base64`, `rayon` |
+| Frontend | React 19 + TypeScript, Vite, Tailwind CSS v3, `@tanstack/react-virtual` |
 | Bridge   | `@tauri-apps/api` (`invoke` for commands, `listen` for events)        |
 
 ## Directory structure
@@ -72,11 +72,22 @@ src/                            React frontend
                                  Trash…") + the list of similar-photo groups.
                                  (Images tab)
     ImageGroupCard.tsx           One similar-photo group: a thumbnail grid,
-                                 pick which photo to keep. (Images tab)
-    ImageThumb.tsx                Loads one thumbnail on demand via the
+                                 pick which photo to keep, a path shown
+                                 relative to the group's common folder, and a
+                                 "Compare full size" button. (Images tab)
+    ImageCompareModal.tsx         Full-screen comparison view for one group:
+                                 an adaptive grid (2 photos → two big panes,
+                                 more → a denser grid), true aspect ratio, no
+                                 cropping; click a tile to zoom into a single
+                                 full-size photo with prev/next navigation.
+                                 Reuses the same keep/skip state as the grid.
+    ImageThumb.tsx                Loads one preview on demand via the
                                  `get_image_thumbnail` command and renders it
                                  as an `<img>` (data URI), with a loading/
-                                 failure placeholder.
+                                 failure placeholder. Takes `maxSize` (small
+                                 for grid tiles, large for the compare view)
+                                 and `fit` ('cover' to crop-fill a square
+                                 tile, 'contain' to show the whole image).
     ConfirmModal.tsx             "Move N files to Trash" confirmation dialog
                                  (shared by both tabs).
     DoneScreen.tsx                Result summary, any files that failed to
@@ -93,11 +104,24 @@ src/                            React frontend
                                  reclaimable-bytes math. Shared by App.tsx,
                                  GroupCard.tsx, and ImageGroupCard.tsx so all
                                  three agree on the rule.
-    format.ts                    Byte/date/filename formatting helpers.
+    format.ts                    Byte/date/filename formatting helpers, plus
+                                 `commonDirPrefix`/`relativePath` — Duplix's
+                                 cache spans every folder ever scanned, so
+                                 there's no single "source folder" globally;
+                                 each similar-photo group's shared ancestor
+                                 folder is used as the "relative to" root
+                                 instead.
     thumbnailQueue.ts             Concurrency-limited queue in front of
                                  `get_image_thumbnail`, used by ImageThumb.tsx
                                  so many thumbnails mounting at once don't
                                  fire dozens of concurrent decode requests.
+    visibilityObserver.ts         One shared `IntersectionObserver` for every
+                                 ImageThumb, instead of one instance per
+                                 thumbnail — with hundreds of thumbnails on
+                                 screen, one-per-element was itself a real
+                                 source of scroll jank, separate from (and on
+                                 top of) the decode-request flood
+                                 thumbnailQueue.ts solves.
   index.css                      Design tokens (CSS vars for light/dark
                                  theme) + Tailwind base.
 ```
@@ -197,17 +221,40 @@ the Images tab is opened:
    cheap and good enough at the sizes these components come in), so "N
    similar photos" always means all N are mutually similar. The slider
    (0–16 in the UI) controls `max_distance`.
-5. **Thumbnails** are never pre-generated or cached on disk — `ImageThumb`
-   calls `get_image_thumbnail(path)` per image, which decodes the file,
-   resizes to 220×220, and returns a JPEG data URI, so the frontend never
-   needs raw filesystem read access. Two things keep this from freezing the
-   UI when a group list or a large group renders: `ImageThumb` only requests
-   its thumbnail once it's actually scrolled near the viewport
-   (`IntersectionObserver`), and every request goes through
-   `lib/thumbnailQueue.ts`, which caps how many thumbnail decodes run at
-   once (4) instead of firing dozens of concurrent IPC calls that saturate
-   every core simultaneously.
-6. **Trashing** reuses the exact same `trash_files` command as the Files
+5. **Previews are never pre-generated or cached on disk** — `ImageThumb`
+   calls `get_image_thumbnail(path, max_size)` per image, which decodes the
+   file, resizes to at most `max_size` on its longest side, and returns a
+   JPEG data URI (quality 88), so the frontend never needs raw filesystem
+   read access. The same command backs both the small 220px grid tiles and
+   the much larger comparison-view previews (900–2000px) — resizing further
+   down is cheap, so one command with a size parameter covers both instead
+   of needing a separate "thumbnail" vs "preview" command. Three things keep
+   this from freezing or janking the UI when a big group list renders or
+   scrolls: the group list itself is virtualized (`@tanstack/react-virtual`
+   in `ImagesScreen.tsx` — only rows near the viewport are ever mounted, not
+   every group at once); `ImageThumb` only requests its preview once
+   scrolled near the viewport, via **one shared** `IntersectionObserver`
+   (`lib/visibilityObserver.ts` — a separate observer instance per thumbnail
+   was itself a measurable source of scroll jank once there were hundreds of
+   them, independent of how much decode work was happening); and every
+   preview request goes through `lib/thumbnailQueue.ts`, which caps how many
+   decodes run at once (4) instead of firing dozens of concurrent IPC calls
+   that saturate every core simultaneously.
+6. **Comparing photos at full size**: `ImageGroupCard`'s "Compare full size"
+   button opens `ImageCompareModal`, an adaptive grid sized to the group's
+   photo count (2 photos → two big side-by-side panes; more → progressively
+   denser) with each photo shown at its true aspect ratio (`fit="contain"`,
+   no cropping) — unlike the small pick-a-copy grid, which crops to a square
+   so tiles line up. Clicking a tile zooms into a single full-size photo
+   with prev/next navigation (arrow buttons, arrow keys) and the same
+   keep/skip controls, so deciding which copy to keep doesn't require
+   closing the comparison view.
+7. **Paths are shown relative to each group's common folder, not
+   absolute** — `format.ts::commonDirPrefix` finds the deepest folder shared
+   by every photo in one group (there's no single global "source folder"
+   to be relative to, since the cache spans every folder ever scanned), and
+   `relativePath` strips it for display.
+8. **Trashing** reuses the exact same `trash_files` command as the Files
    tab — an image group's "kept" file defaults to `defaultKeepIndex` (same
    shortest-path/oldest-mtime rule), same as exact-duplicate groups.
 
@@ -282,12 +329,15 @@ state worth knowing about:
 | `trash_files`                   | `paths: string[]`| `{ trashed, failed }`             |
 | `clear_cache`                   | —                | `number` (rows deleted)           |
 | `get_similar_image_groups`      | `maxDistance: number` | `{ groups: SimilarImageGroup[], indexed_count }` |
-| `get_image_thumbnail`           | `path: string`   | `string` (JPEG data URI)          |
+| `start_image_indexing`          | —                | `void` (progress via events)      |
+| `get_image_thumbnail`           | `path: string, maxSize: number` | `string` (JPEG data URI) |
 
-| Event            | Payload                                         |
-|------------------|--------------------------------------------------|
-| `scan-progress`  | `{ scanned: number, current_path: string }`      |
-| `scan-complete`  | `{ scanned, skipped_dirs, canceled }`            |
+| Event                    | Payload                                       |
+|--------------------------|------------------------------------------------|
+| `scan-progress`          | `{ scanned: number, current_path: string }`     |
+| `scan-complete`          | `{ scanned, skipped_dirs, canceled }`           |
+| `image-index-progress`   | `{ indexed: number, total: number }`            |
+| `image-index-complete`   | `{ indexed: number, total: number }`            |
 
 `src/lib/api.ts` is the single source of truth for these signatures on the
 frontend side — if you add or change a command, update it there too.
@@ -361,3 +411,20 @@ cd src-tauri && cargo check   # type-check the Rust side
   and stall the UI until they all finished. Loading only what's near the
   viewport, a handful at a time, keeps the app responsive; a disk cache
   wasn't needed once that was fixed.
+- **One shared `IntersectionObserver`, not one per thumbnail** — the first
+  lazy-loading version above still `new IntersectionObserver(...)`'d inside
+  every `ImageThumb`. That fixed the initial load spike but not scrolling
+  itself: hundreds of independent observer instances all reacting to every
+  scroll frame (plus a React re-render each time one crossed the threshold)
+  is real, spread-out overhead, distinct from — and not fixed by — capping
+  decode concurrency. `lib/visibilityObserver.ts` shares one observer
+  instance across every thumbnail instead.
+- **The group list is virtualized (`@tanstack/react-virtual`)** — for the
+  same reason as the shared observer above: even with every thumbnail
+  request deferred and throttled, a long list (or one huge group) still
+  meant hundreds of live DOM nodes that the browser has to lay out and paint
+  on every scroll frame, image loading aside entirely. Only rows actually
+  near the viewport are mounted. Variable row height (a group's height
+  changes when expanded/collapsed) is handled by the library's
+  `measureElement` — it re-measures via `ResizeObserver` rather than
+  assuming a fixed row height.

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import type { ImageIndexProgress, SimilarImageGroup } from '../lib/api'
 import { formatBytes } from '../lib/format'
 import { defaultKeepIndex, type GroupUiState } from '../lib/groups'
@@ -51,6 +52,21 @@ export function ImagesScreen({
   onDismissResult,
 }: ImagesScreenProps) {
   const [sliderValue, setSliderValue] = useState(threshold)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // The group list is virtualized: with hundreds of groups (or one with many
+  // photos expanded), keeping every one of them mounted made every scroll
+  // frame pay for laying out and painting elements nowhere near the
+  // viewport. Only rows actually near the visible area get rendered.
+  // estimateSize is just a starting guess — measureElement (attached to each
+  // row below) corrects it once a row's real height is known, so expanding
+  // or collapsing a group reflows correctly.
+  const rowVirtualizer = useVirtualizer({
+    count: groups.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 74,
+    overscan: 6,
+  })
 
   useEffect(() => {
     setSliderValue(threshold)
@@ -156,7 +172,7 @@ export function ImagesScreen({
         </div>
       )}
 
-      <div className="flex-1 overflow-auto p-6 pt-2.5">
+      <div ref={scrollRef} className="flex-1 overflow-auto p-6 pt-2.5">
         {loading && indexProgress && indexProgress.total > 0 && (
           <div className="mx-auto mt-16 max-w-[360px]">
             <div className="text-center text-sm" style={{ color: 'var(--ink2)' }}>
@@ -210,17 +226,35 @@ export function ImagesScreen({
           </div>
         )}
 
-        {!loading &&
-          groups.map((g) => (
-            <ImageGroupCard
-              key={g.id}
-              group={g}
-              ui={groupUi[g.id] ?? emptyUi()}
-              onToggleOpen={() => onToggleOpen(g.id)}
-              onToggleSkip={() => onToggleSkip(g.id)}
-              onSetKeepIndex={(i) => onSetKeepIndex(g.id, i)}
-            />
-          ))}
+        {!loading && groups.length > 0 && (
+          <div style={{ position: 'relative', height: rowVirtualizer.getTotalSize() }}>
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const g = groups[virtualRow.index]
+              return (
+                <div
+                  key={g.id}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <ImageGroupCard
+                    group={g}
+                    ui={groupUi[g.id] ?? emptyUi()}
+                    onToggleOpen={() => onToggleOpen(g.id)}
+                    onToggleSkip={() => onToggleSkip(g.id)}
+                    onSetKeepIndex={(i) => onSetKeepIndex(g.id, i)}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {showConfirm && (

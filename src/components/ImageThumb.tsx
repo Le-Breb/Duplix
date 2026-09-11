@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { requestThumbnail } from '../lib/thumbnailQueue'
+import { whenVisible } from '../lib/visibilityObserver'
 
 interface ImageThumbProps {
   path: string
+  /** Longest-side cap for the decoded preview. Small grid tiles want a small,
+   * cheap thumbnail; the comparison view wants a much bigger one. */
+  maxSize?: number
+  /** 'cover' crops to fill the box (grid tiles); 'contain' shows the whole
+   * image letterboxed (comparison view, where cropping would hide the thing
+   * being compared). */
+  fit?: 'cover' | 'contain'
 }
 
-export function ImageThumb({ path }: ImageThumbProps) {
+export function ImageThumb({ path, maxSize = 220, fit = 'cover' }: ImageThumbProps) {
   const [src, setSrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   // Lazily seeded so an environment without IntersectionObserver just shows
@@ -21,23 +29,13 @@ export function ImageThumb({ path }: ImageThumbProps) {
     if (visible) return
     const el = rootRef.current
     if (!el) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setVisible(true)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: '300px' },
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
+    return whenVisible(el, () => setVisible(true))
   }, [visible])
 
   useEffect(() => {
     if (!visible) return
     let cancelled = false
-    requestThumbnail(path)
+    requestThumbnail(path, maxSize)
       .then((data) => {
         if (!cancelled) setSrc(data)
       })
@@ -47,7 +45,7 @@ export function ImageThumb({ path }: ImageThumbProps) {
     return () => {
       cancelled = true
     }
-  }, [visible, path])
+  }, [visible, path, maxSize])
 
   return (
     <div ref={rootRef} className="h-full w-full">
@@ -59,7 +57,13 @@ export function ImageThumb({ path }: ImageThumbProps) {
           N/A
         </div>
       ) : src ? (
-        <img src={src} alt="" className="h-full w-full object-cover" />
+        <img
+          src={src}
+          alt=""
+          decoding="async"
+          loading="lazy"
+          className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
+        />
       ) : (
         <div className="h-full w-full" style={{ background: 'var(--bg2)' }} />
       )}
