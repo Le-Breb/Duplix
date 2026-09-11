@@ -23,7 +23,7 @@ interface ImagesScreenProps {
   committing: boolean
   onCommitGroup: (group: SimilarImageGroup) => void
   committingGroupId: string | null
-  lastResult: { trashedCount: number; reclaimedBytes: number } | null
+  lastResult: { trashedCount: number; reclaimedBytes: number; failed: [string, string][] } | null
   onDismissResult: () => void
 }
 
@@ -168,17 +168,44 @@ export function ImagesScreen({
       </div>
 
       {lastResult && (
-        <div
-          className="mx-6 mt-3 flex items-center justify-between rounded-md px-3.5 py-2.5 text-[12.5px]"
-          style={{ border: '1px solid var(--tint-line)', background: 'var(--tint)', color: 'var(--accent)' }}
-        >
-          <div>
-            {lastResult.trashedCount.toLocaleString()} photos sent to Trash ·{' '}
-            {formatBytes(lastResult.reclaimedBytes)} reclaimed
-          </div>
-          <button onClick={onDismissResult} className="text-[11px]" style={{ color: 'var(--accent)' }}>
-            Dismiss
-          </button>
+        <div className="mx-6 mt-3 flex flex-col gap-2">
+          {lastResult.trashedCount > 0 && (
+            <div
+              className="flex items-center justify-between rounded-md px-3.5 py-2.5 text-[12.5px]"
+              style={{ border: '1px solid var(--tint-line)', background: 'var(--tint)', color: 'var(--accent)' }}
+            >
+              <div>
+                {lastResult.trashedCount.toLocaleString()} photos sent to Trash ·{' '}
+                {formatBytes(lastResult.reclaimedBytes)} reclaimed
+              </div>
+              {lastResult.failed.length === 0 && (
+                <button onClick={onDismissResult} className="text-[11px]" style={{ color: 'var(--accent)' }}>
+                  Dismiss
+                </button>
+              )}
+            </div>
+          )}
+          {lastResult.failed.length > 0 && (
+            <div
+              className="flex flex-col gap-1.5 rounded-md px-3.5 py-2.5 text-[12.5px]"
+              style={{ border: '1px solid var(--warn-line)', background: 'var(--warn-bg)', color: 'var(--warn-ink)' }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  {lastResult.failed.length.toLocaleString()} photo{lastResult.failed.length === 1 ? '' : 's'} could
+                  not be moved to Trash
+                </div>
+                <button onClick={onDismissResult} className="text-[11px]" style={{ color: 'var(--warn-ink)' }}>
+                  Dismiss
+                </button>
+              </div>
+              {lastResult.failed.slice(0, 5).map(([path, reason]) => (
+                <div key={path} className="truncate font-mono text-[11px]" title={`${path} — ${reason}`}>
+                  {path} — {reason}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -521,3 +521,23 @@ cd src-tauri && cargo check   # type-check the Rust side
   models was considered and rejected for now — it would touch the Files
   tab's `GroupCard.tsx`/`ResultsScreen.tsx`, which aren't broken and weren't
   part of what this was solving.
+- **Both Images-tab commit paths (`handleCommitImages`, `handleCommitGroupNow`
+  in `App.tsx`) surface `trashFiles`'s `failed` list, not just `trashed`** —
+  an earlier version only read `outcome.trashed.length` for the result
+  toast, so a `trash_files` call that failed for every requested path (most
+  commonly: a cached row's path no longer points to a real file — moved,
+  renamed, or deleted since it was scanned/indexed, which `trash::delete`
+  reports as a plain OS "not found" error) silently showed a *misleadingly
+  successful-looking* "0 photos sent to Trash" toast and the same "did
+  nothing" group just sat back in the list on refresh with no explanation.
+  `ImagesScreen`'s result banner now renders a distinct warning block (only
+  when `failed.length > 0`, separate from the success block) with each
+  failed path and its actual OS error message, and suppresses the success
+  block entirely when nothing actually trashed — see `formatBytes` below
+  for the display bug this also caught.
+- **`formatBytes(0)` must return `"0 KB"`, not `"1 KB"`** — the function
+  floors small positive byte counts up to "1 KB" so a real (if tiny)
+  reclaim never misleadingly reads as "nothing happened" — but that same
+  floor made a *genuine* zero (nothing reclaimed, e.g. every file in a
+  commit failed to trash) *also* read as "1 KB", which is exactly backwards
+  for that case. `bytes <= 0` is special-cased ahead of the floor now.

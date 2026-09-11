@@ -1,8 +1,12 @@
 export function formatBytes(bytes: number): string {
+  if (bytes <= 0) return '0 KB'
   const mb = bytes / (1024 * 1024)
   if (mb >= 1024) return (mb / 1024).toFixed(2) + ' GB'
   if (mb >= 100) return Math.round(mb) + ' MB'
   if (mb >= 1) return mb.toFixed(1) + ' MB'
+  // A real, positive, sub-1KB byte count still reads as "1 KB" (rounding
+  // to 0 would misleadingly look identical to "nothing happened") — but
+  // exactly 0 bytes (the `bytes <= 0` case above) must never say "1 KB".
   return Math.max(1, Math.round(bytes / 1024)) + ' KB'
 }
 

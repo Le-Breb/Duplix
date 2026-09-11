@@ -69,7 +69,11 @@ export default function App() {
   const [indexProgress, setIndexProgress] = useState<ImageIndexProgress | null>(null)
   const [showImageConfirm, setShowImageConfirm] = useState(false)
   const [imageCommitting, setImageCommitting] = useState(false)
-  const [imageResult, setImageResult] = useState<{ trashedCount: number; reclaimedBytes: number } | null>(null)
+  const [imageResult, setImageResult] = useState<{
+    trashedCount: number
+    reclaimedBytes: number
+    failed: [string, string][]
+  } | null>(null)
   const [committingGroupId, setCommittingGroupId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -229,7 +233,7 @@ export default function App() {
     try {
       const outcome = await trashFiles(toTrash)
       const reclaimedBytes = outcome.trashed.reduce((sum, p) => sum + (sizeByPath.get(p) ?? 0), 0)
-      setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes })
+      setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes, failed: outcome.failed })
       setShowImageConfirm(false)
       await loadImageGroups(imageThreshold)
     } catch (e) {
@@ -253,7 +257,7 @@ export default function App() {
     try {
       const outcome = await trashFiles(toTrash)
       const reclaimedBytes = outcome.trashed.reduce((sum, p) => sum + (sizeByPath.get(p) ?? 0), 0)
-      setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes })
+      setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes, failed: outcome.failed })
       await loadImageGroups(imageThreshold)
     } catch (e) {
       setImagesError(String(e))
