@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { SimilarImageGroup } from '../lib/api'
 import { fileName, formatBytes, formatDate, relativePath } from '../lib/format'
-import { defaultKeepIndex, resolveKeptIndices, type ImageGroupUiState } from '../lib/groups'
+import { resolveKeptIndices, type ImageGroupUiState } from '../lib/groups'
 import { ImageThumb } from './ImageThumb'
 
 interface ImageCompareModalProps {
@@ -72,10 +72,6 @@ export function ImageCompareModal({
     onSetKeptIndices(new Set([best]))
   }
 
-  const keepShortestPath = () => {
-    onSetKeptIndices(new Set([defaultKeepIndex(group.files)]))
-  }
-
   const toggleKeepAll = () => {
     onSetKeptIndices(allKept ? new Set() : new Set(group.files.map((_, i) => i)))
   }
@@ -111,40 +107,41 @@ export function ImageCompareModal({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={keepNewest}
-            className="rounded-md px-2 py-1 text-xs"
-            style={{ color: 'var(--accent-hover)' }}
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            className="flex items-stretch overflow-hidden rounded-md"
+            style={{ border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(255,255,255,0.04)' }}
           >
-            Keep newest
-          </button>
-          <button
-            onClick={keepShortestPath}
-            className="rounded-md px-2 py-1 text-xs"
-            style={{ color: 'var(--accent-hover)' }}
-          >
-            Keep shortest path
-          </button>
-          <button
-            onClick={toggleKeepAll}
-            className="rounded-md px-2 py-1 text-xs"
-            style={{ color: 'rgba(255,255,255,0.7)' }}
-          >
-            {allKept ? 'Keep none' : 'Keep all in this set'}
-          </button>
+            <button
+              onClick={keepNewest}
+              className="whitespace-nowrap px-3 py-1.5 text-xs transition-colors hover:bg-white/10"
+              style={{ color: 'var(--panel)' }}
+            >
+              Keep newest
+            </button>
+            <div style={{ width: 1, background: 'rgba(255,255,255,0.16)' }} />
+            <button
+              onClick={toggleKeepAll}
+              className="whitespace-nowrap px-3 py-1.5 text-xs transition-colors hover:bg-white/10"
+              style={{ color: 'var(--panel)' }}
+            >
+              {allKept ? 'Keep none' : 'Keep all'}
+            </button>
+          </div>
+
           <button
             onClick={onCommitNow}
             disabled={allKept || committing}
-            className="whitespace-nowrap rounded-md px-2.5 py-1 text-xs disabled:cursor-default disabled:opacity-50"
+            className="whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-50"
             style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
           >
             {committing ? 'Trashing…' : 'Trash this set now'}
           </button>
+
           <button
             onClick={onClose}
-            className="rounded-md px-2.5 py-1 text-[13px]"
-            style={{ color: 'var(--panel)', border: '1px solid rgba(255,255,255,0.25)' }}
+            className="rounded-md px-3 py-1.5 text-xs transition-colors hover:bg-white/10"
+            style={{ color: 'var(--panel)', border: '1px solid rgba(255,255,255,0.16)' }}
           >
             Close (Esc)
           </button>
