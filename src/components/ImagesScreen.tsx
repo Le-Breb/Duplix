@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { ImageIndexProgress, SimilarImageGroup } from '../lib/api'
 import { formatBytes } from '../lib/format'
@@ -15,7 +15,6 @@ interface ImagesScreenProps {
   hasIndexedImages: boolean
   threshold: number
   onChangeThreshold: (value: number) => void
-  onToggleOpen: (id: string) => void
   onToggleSkip: (id: string) => void
   onSetKeepIndex: (id: string, index: number | null) => void
   showConfirm: boolean
@@ -40,7 +39,6 @@ export function ImagesScreen({
   hasIndexedImages,
   threshold,
   onChangeThreshold,
-  onToggleOpen,
   onToggleSkip,
   onSetKeepIndex,
   showConfirm,
@@ -54,13 +52,14 @@ export function ImagesScreen({
   const [sliderValue, setSliderValue] = useState(threshold)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // The group list is virtualized: with hundreds of groups (or one with many
-  // photos expanded), keeping every one of them mounted made every scroll
-  // frame pay for laying out and painting elements nowhere near the
-  // viewport. Only rows actually near the visible area get rendered.
-  // estimateSize is just a starting guess — measureElement (attached to each
-  // row below) corrects it once a row's real height is known, so expanding
-  // or collapsing a group reflows correctly.
+  // The group list is virtualized: with hundreds of groups, keeping every
+  // one of them mounted made every scroll frame pay for laying out and
+  // painting elements nowhere near the viewport. Only rows actually near the
+  // visible area get rendered. Every row is now a fixed-height summary (the
+  // comparison view is a full-screen overlay, not an inline expand), so
+  // estimateSize is exact rather than just a starting guess — measureElement
+  // is kept anyway as a defensive correction, cheap since it won't find
+  // anything to correct.
   const rowVirtualizer = useVirtualizer({
     count: groups.length,
     getScrollElement: () => scrollRef.current,
@@ -79,25 +78,35 @@ export function ImagesScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sliderValue])
 
-  let trashCount = 0
-  let keptCount = 0
-  let reclaimBytes = 0
-  for (const g of groups) {
-    const ui = groupUi[g.id]
-    if (ui?.skipped) {
-      keptCount += g.files.length
-      continue
-    }
-    const keepIndex = ui?.keepIndex ?? defaultKeepIndex(g.files)
-    g.files.forEach((f, i) => {
-      if (i === keepIndex) {
-        keptCount += 1
-      } else {
-        trashCount += 1
-        reclaimBytes += f.size
+  // Memoized deliberately: useVirtualizer re-renders this component on every
+  // scroll frame (that's how it knows which rows are visible), and this
+  // O(total photos) loop was re-running right along with it — completely
+  // unrelated to thumbnail loading, but a real, synchronous, main-thread
+  // cost paid on every single scroll tick regardless of how many groups
+  // were actually visible. That was a genuine remaining cause of scroll
+  // jank, separate from (and in addition to) the thumbnail-loading fixes.
+  const { trashCount, keptCount, reclaimBytes } = useMemo(() => {
+    let trashCount = 0
+    let keptCount = 0
+    let reclaimBytes = 0
+    for (const g of groups) {
+      const ui = groupUi[g.id]
+      if (ui?.skipped) {
+        keptCount += g.files.length
+        continue
       }
-    })
-  }
+      const keepIndex = ui?.keepIndex ?? defaultKeepIndex(g.files)
+      g.files.forEach((f, i) => {
+        if (i === keepIndex) {
+          keptCount += 1
+        } else {
+          trashCount += 1
+          reclaimBytes += f.size
+        }
+      })
+    }
+    return { trashCount, keptCount, reclaimBytes }
+  }, [groups, groupUi])
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -246,7 +255,6 @@ export function ImagesScreen({
                   <ImageGroupCard
                     group={g}
                     ui={groupUi[g.id] ?? emptyUi()}
-                    onToggleOpen={() => onToggleOpen(g.id)}
                     onToggleSkip={() => onToggleSkip(g.id)}
                     onSetKeepIndex={(i) => onSetKeepIndex(g.id, i)}
                   />

@@ -71,23 +71,31 @@ src/                            React frontend
     ImagesScreen.tsx             Header (totals, sensitivity slider, "Move to
                                  Trash…") + the list of similar-photo groups.
                                  (Images tab)
-    ImageGroupCard.tsx           One similar-photo group: a thumbnail grid,
-                                 pick which photo to keep, a path shown
-                                 relative to the group's common folder, and a
-                                 "Compare full size" button. (Images tab)
-    ImageCompareModal.tsx         Full-screen comparison view for one group:
-                                 an adaptive grid (2 photos → two big panes,
-                                 more → a denser grid), true aspect ratio, no
-                                 cropping; click a tile to zoom into a single
-                                 full-size photo with prev/next navigation.
-                                 Reuses the same keep/skip state as the grid.
+    ImageGroupCard.tsx           A similar-photo group's summary row (fixed
+                                 height — no inline expand): thumbnail,
+                                 filename, count/similarity, reclaim size.
+                                 Clicking it opens ImageCompareModal — there's
+                                 exactly one place to look at a group's
+                                 photos, not a small inline grid plus a
+                                 separate bigger one. (Images tab)
+    ImageCompareModal.tsx         Full-screen comparison view for one group,
+                                 portaled to `document.body` (see the comment
+                                 on the component — it has to be, since it's
+                                 mounted from inside a `transform`-positioned
+                                 virtualized row): an adaptive grid (2 photos
+                                 → two big panes, more → a denser grid), true
+                                 aspect ratio, no cropping, keep/skip controls
+                                 in the header; click a tile to zoom into a
+                                 single full-size photo with prev/next
+                                 navigation.
     ImageThumb.tsx                Loads one preview on demand via the
                                  `get_image_thumbnail` command and renders it
                                  as an `<img>` (data URI), with a loading/
                                  failure placeholder. Takes `maxSize` (small
-                                 for grid tiles, large for the compare view)
-                                 and `fit` ('cover' to crop-fill a square
-                                 tile, 'contain' to show the whole image).
+                                 for the group row's icon, large for the
+                                 compare view) and `fit` ('cover' to
+                                 crop-fill a square, 'contain' to show the
+                                 whole image).
     ConfirmModal.tsx             "Move N files to Trash" confirmation dialog
                                  (shared by both tabs).
     DoneScreen.tsx                Result summary, any files that failed to
@@ -240,15 +248,15 @@ the Images tab is opened:
    preview request goes through `lib/thumbnailQueue.ts`, which caps how many
    decodes run at once (4) instead of firing dozens of concurrent IPC calls
    that saturate every core simultaneously.
-6. **Comparing photos at full size**: `ImageGroupCard`'s "Compare full size"
-   button opens `ImageCompareModal`, an adaptive grid sized to the group's
-   photo count (2 photos → two big side-by-side panes; more → progressively
-   denser) with each photo shown at its true aspect ratio (`fit="contain"`,
-   no cropping) — unlike the small pick-a-copy grid, which crops to a square
-   so tiles line up. Clicking a tile zooms into a single full-size photo
-   with prev/next navigation (arrow buttons, arrow keys) and the same
-   keep/skip controls, so deciding which copy to keep doesn't require
-   closing the comparison view.
+6. **Comparing photos**: clicking a group row opens `ImageCompareModal` — the
+   *only* view of a group's photos (an earlier version also had a small
+   inline square-cropped grid for picking which copy to keep, duplicating
+   the same job at a worse size; it's gone). The modal is an adaptive grid
+   sized to the group's photo count (2 photos → two big side-by-side panes;
+   more → progressively denser) with each photo at its true aspect ratio
+   (`fit="contain"`, no cropping), keep/skip controls in the header. Clicking
+   a tile zooms into a single full-size photo with prev/next navigation
+   (arrow buttons, arrow keys).
 7. **Paths are shown relative to each group's common folder, not
    absolute** — `format.ts::commonDirPrefix` finds the deepest folder shared
    by every photo in one group (there's no single global "source folder"
@@ -421,10 +429,43 @@ cd src-tauri && cargo check   # type-check the Rust side
   instance across every thumbnail instead.
 - **The group list is virtualized (`@tanstack/react-virtual`)** — for the
   same reason as the shared observer above: even with every thumbnail
-  request deferred and throttled, a long list (or one huge group) still
-  meant hundreds of live DOM nodes that the browser has to lay out and paint
-  on every scroll frame, image loading aside entirely. Only rows actually
-  near the viewport are mounted. Variable row height (a group's height
-  changes when expanded/collapsed) is handled by the library's
-  `measureElement` — it re-measures via `ResizeObserver` rather than
-  assuming a fixed row height.
+  request deferred and throttled, a long list still meant hundreds of live
+  DOM nodes that the browser has to lay out and paint on every scroll frame,
+  image loading aside entirely. Only rows actually near the viewport are
+  mounted. Every row is a fixed-height summary (comparing a group's photos
+  opens a full-screen modal, not an inline expand — see below), so
+  `estimateSize` is exact; `measureElement` is kept anyway as a cheap
+  defensive correction in case that ever stops being true.
+- **Scroll-triggered re-renders must not do real work** — `useVirtualizer`
+  re-renders `ImagesScreen` on every scroll frame (that's how it knows which
+  rows are newly visible). A first version computed the header's totals
+  (`trashCount`/`keptCount`/`reclaimBytes`) with a plain `for` loop over
+  every group directly in the render body, so that loop — its cost scaling
+  with the *entire* library, not just what's visible — reran on every single
+  scroll tick. That's a real, synchronous, main-thread cost with nothing to
+  do with thumbnail loading, and was a genuine remaining cause of scroll
+  jank after the loading-related fixes above. It's wrapped in `useMemo` now,
+  keyed on `[groups, groupUi]`, so it only reruns when the data actually
+  changes. The lesson generalizes: with a scroll-driven re-render in the
+  mix, *any* per-render work whose cost scales with total data rather than
+  visible data is worth checking, not just the obvious image-loading path.
+- **Comparing a group's photos is a single unified view, not an inline
+  pick-grid plus a separate "compare" modal** — an earlier version had both:
+  a small square-cropped inline grid in `ImageGroupCard` for picking which
+  copy to keep, and a separate, bigger `ImageCompareModal` (behind a
+  "Compare full size" button) for actually looking at them. Two views doing
+  the same underlying job (look at the group's photos, decide which to
+  keep) at two different sizes was confusing and redundant. Clicking a
+  group row now opens `ImageCompareModal` directly, with the pick-which-
+  to-keep controls (`Keep newest` / `Keep shortest path` / `Keep all in this
+  set`) moved into its header — one place to look, one place to decide.
+- **`ImageCompareModal` renders through a React portal to `document.body`,
+  not in place** — it's mounted from inside a group row, and `ImagesScreen`
+  positions virtualized rows with `transform: translateY(...)`. A CSS
+  `transform` on an ancestor makes that ancestor the containing block for
+  any `position: fixed` descendant, instead of the viewport — so without the
+  portal, this "full-screen" overlay only ever covered its own row's box on
+  screen, not the actual window. Easy to miss until you actually look at it
+  rendered; if you're adding another `position: fixed` overlay anywhere
+  downstream of a transformed/virtualized ancestor, it needs the same
+  treatment.

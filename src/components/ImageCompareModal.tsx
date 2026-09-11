@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { SimilarImageGroup } from '../lib/api'
 import { fileName, formatBytes, formatDate, relativePath } from '../lib/format'
 import { defaultKeepIndex, type GroupUiState } from '../lib/groups'
@@ -9,6 +10,7 @@ interface ImageCompareModalProps {
   ui: GroupUiState
   commonDir: string
   onSetKeepIndex: (index: number | null) => void
+  onToggleSkip: () => void
   onClose: () => void
 }
 
@@ -23,7 +25,13 @@ function columnsFor(n: number): number {
   return 4
 }
 
-export function ImageCompareModal({ group, ui, commonDir, onSetKeepIndex, onClose }: ImageCompareModalProps) {
+// Rendered via a portal to document.body rather than in place: this modal is
+// mounted from inside a group row that ImagesScreen positions with
+// `transform: translateY(...)` for virtualization, and a `transform` on an
+// ancestor makes `position: fixed` descendants fixed relative to *that*
+// ancestor instead of the viewport — without the portal, this "full-screen"
+// overlay would only ever cover that one row's box.
+export function ImageCompareModal({ group, ui, commonDir, onSetKeepIndex, onToggleSkip, onClose }: ImageCompareModalProps) {
   const [zoomedIndex, setZoomedIndex] = useState<number | null>(null)
   const keepIndex = ui.keepIndex ?? defaultKeepIndex(group.files)
   const n = group.files.length
@@ -45,12 +53,20 @@ export function ImageCompareModal({ group, ui, commonDir, onSetKeepIndex, onClos
 
   const columns = columnsFor(n)
 
-  return (
+  const keepNewest = () => {
+    let best = 0
+    group.files.forEach((f, i) => {
+      if (f.mtime > group.files[best].mtime) best = i
+    })
+    onSetKeepIndex(best)
+  }
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#0a0c0f' }}>
-      <div className="flex flex-none items-center justify-between px-5 py-3.5">
+      <div className="flex flex-none flex-wrap items-center justify-between gap-2 px-5 py-3.5">
         <div className="text-[13.5px]" style={{ color: 'var(--panel)' }}>
           {zoomedIndex === null ? (
-            `Comparing ${n} similar photos`
+            `${n} similar photos`
           ) : (
             <button
               onClick={() => setZoomedIndex(null)}
@@ -61,13 +77,37 @@ export function ImageCompareModal({ group, ui, commonDir, onSetKeepIndex, onClos
             </button>
           )}
         </div>
-        <button
-          onClick={onClose}
-          className="rounded-md px-2.5 py-1 text-[13px]"
-          style={{ color: 'var(--panel)', border: '1px solid rgba(255,255,255,0.25)' }}
-        >
-          Close (Esc)
-        </button>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={keepNewest}
+            className="rounded-md px-2 py-1 text-xs"
+            style={{ color: 'var(--accent-hover)' }}
+          >
+            Keep newest
+          </button>
+          <button
+            onClick={() => onSetKeepIndex(null)}
+            className="rounded-md px-2 py-1 text-xs"
+            style={{ color: 'var(--accent-hover)' }}
+          >
+            Keep shortest path
+          </button>
+          <button
+            onClick={onToggleSkip}
+            className="rounded-md px-2 py-1 text-xs"
+            style={{ color: 'rgba(255,255,255,0.7)' }}
+          >
+            {ui.skipped ? 'Include this set' : 'Keep all in this set'}
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded-md px-2.5 py-1 text-[13px]"
+            style={{ color: 'var(--panel)', border: '1px solid rgba(255,255,255,0.25)' }}
+          >
+            Close (Esc)
+          </button>
+        </div>
       </div>
 
       {zoomedIndex === null ? (
@@ -172,6 +212,7 @@ export function ImageCompareModal({ group, ui, commonDir, onSetKeepIndex, onClos
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -341,7 +341,6 @@ export default function App() {
             hasIndexedImages={imagesIndexedCount > 0}
             threshold={imageThreshold}
             onChangeThreshold={handleChangeImageThreshold}
-            onToggleOpen={(id) => patchImageGroupUi(id, { open: !imageGroupUi[id]?.open })}
             onToggleSkip={(id) => patchImageGroupUi(id, { skipped: !imageGroupUi[id]?.skipped })}
             onSetKeepIndex={(id, index) => patchImageGroupUi(id, { keepIndex: index })}
             showConfirm={showImageConfirm}
