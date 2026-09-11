@@ -1,19 +1,18 @@
 import { memo, useMemo, useState } from 'react'
 import type { SimilarImageGroup } from '../lib/api'
 import { commonDirPrefix, fileName, formatBytes } from '../lib/format'
-import { defaultKeepIndex, type GroupUiState } from '../lib/groups'
+import { resolveKeptIndices, type ImageGroupUiState } from '../lib/groups'
 import { ImageThumb } from './ImageThumb'
 import { ImageCompareModal } from './ImageCompareModal'
 
 interface ImageGroupCardProps {
   group: SimilarImageGroup
-  ui: GroupUiState
-  // Raw, id-aware handlers rather than already-bound-to-this-group callbacks:
-  // ImagesScreen passes these straight through unwrapped, which is what lets
-  // them stay referentially stable across its scroll-driven re-renders (see
-  // the comment on React.memo below).
-  onToggleSkip: (id: string) => void
-  onSetKeepIndex: (id: string, index: number | null) => void
+  ui: ImageGroupUiState
+  // Raw, id-aware handler rather than an already-bound-to-this-group
+  // callback: ImagesScreen passes this straight through unwrapped, which is
+  // what lets it stay referentially stable across its scroll-driven
+  // re-renders (see the comment on React.memo below).
+  onSetKeptIndices: (id: string, keptIndices: Set<number>) => void
   onCommitGroup: (group: SimilarImageGroup) => void
   committing: boolean
 }
@@ -45,17 +44,16 @@ function similarityLabel(maxDistance: number): string {
 export const ImageGroupCard = memo(function ImageGroupCard({
   group,
   ui,
-  onToggleSkip,
-  onSetKeepIndex,
+  onSetKeptIndices,
   onCommitGroup,
   committing,
 }: ImageGroupCardProps) {
   const [comparing, setComparing] = useState(false)
-  const keepIndex = ui.keepIndex ?? defaultKeepIndex(group.files)
-  const keptFile = group.files[keepIndex]
-  const reclaim = ui.skipped
-    ? 0
-    : group.files.reduce((sum, f, i) => (i === keepIndex ? sum : sum + f.size), 0)
+  const kept = resolveKeptIndices(group.files, ui)
+  const allKept = kept.size === group.files.length
+  const noneKept = kept.size === 0
+  const previewFile = group.files[noneKept ? 0 : [...kept][0]]
+  const reclaim = group.files.reduce((sum, f, i) => (kept.has(i) ? sum : sum + f.size), 0)
   const commonDir = useMemo(() => commonDirPrefix(group.files.map((f) => f.path)), [group.files])
 
   return (
@@ -72,22 +70,30 @@ export const ImageGroupCard = memo(function ImageGroupCard({
           className="h-[46px] w-[46px] flex-none overflow-hidden rounded-[5px]"
           style={{ border: '1px solid var(--line)' }}
         >
-          <ImageThumb key={keptFile.path} path={keptFile.path} />
+          <ImageThumb key={previewFile.path} path={previewFile.path} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm" style={{ color: 'var(--ink)' }}>
-            {fileName(keptFile.path)}
+            {fileName(previewFile.path)}
           </div>
           <div className="mt-1 truncate text-[12.5px]" style={{ color: 'var(--ink2)' }}>
             {group.files.length} similar photos · {similarityLabel(group.max_distance)}
+            {kept.size > 1 && !allKept && ` · ${kept.size} to keep`}
           </div>
         </div>
-        {ui.skipped ? (
+        {allKept ? (
           <div
             className="rounded-full px-[9px] py-1 font-mono text-[10px] tracking-[0.06em]"
             style={{ border: '1px solid var(--line)', color: 'var(--ink3)' }}
           >
             KEEPING ALL
+          </div>
+        ) : noneKept ? (
+          <div
+            className="rounded-full px-[9px] py-1 font-mono text-[10px] tracking-[0.06em]"
+            style={{ border: '1px solid var(--warn-line)', background: 'var(--warn-bg)', color: 'var(--warn-ink)' }}
+          >
+            TRASHING ALL
           </div>
         ) : (
           <div className="text-right">
@@ -109,8 +115,7 @@ export const ImageGroupCard = memo(function ImageGroupCard({
           group={group}
           ui={ui}
           commonDir={commonDir}
-          onSetKeepIndex={(i) => onSetKeepIndex(group.id, i)}
-          onToggleSkip={() => onToggleSkip(group.id)}
+          onSetKeptIndices={(indices) => onSetKeptIndices(group.id, indices)}
           onCommitNow={() => onCommitGroup(group)}
           committing={committing}
           onClose={() => setComparing(false)}

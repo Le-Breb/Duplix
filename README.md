@@ -254,9 +254,14 @@ the Images tab is opened:
    the same job at a worse size; it's gone). The modal is an adaptive grid
    sized to the group's photo count (2 photos → two big side-by-side panes;
    more → progressively denser) with each photo at its true aspect ratio
-   (`fit="contain"`, no cropping), keep/skip controls in the header. Clicking
-   a tile zooms into a single full-size photo with prev/next navigation
-   (arrow buttons, arrow keys).
+   (`fit="contain"`, no cropping). Clicking a tile zooms into a single
+   full-size photo with prev/next navigation (arrow buttons, arrow keys).
+   Every photo's "Keep"/"→ Trash" pill toggles independently (checkbox
+   semantics, not radio) — the user can keep an arbitrary subset of a
+   group's photos, not just exactly one or all of them. "Keep newest" and
+   "Keep shortest path" replace the whole kept set with a single index (the
+   common case, one click); "Keep all in this set" toggles between
+   everything and nothing kept.
 7. **Paths are shown relative to each group's common folder, not
    absolute** — `format.ts::commonDirPrefix` finds the deepest folder shared
    by every photo in one group (there's no single global "source folder"
@@ -325,14 +330,26 @@ state worth knowing about:
 - `screen: 'home' | 'scanning' | 'results' | 'empty' | 'error' | 'done'` —
   drives which Files-tab screen renders. There's no router; it's just a big
   conditional in the JSX.
-- `groupUi` / `imageGroupUi: Record<hash-or-id, { keepIndex, skipped, open }>`
-  — per-group UI overrides, one map per tab, keyed by `content_hash` (Files)
-  or the cluster `id` (Images) so they survive group list re-renders.
-  `keepIndex: null` means "use the computed default" (`defaultKeepIndex`),
-  not "no file is kept." The Images tab's cluster `id` is a BLAKE3 hash of
-  its sorted member paths (computed in `get_similar_image_groups`), so it
-  stays stable across re-clustering as long as the same files end up
-  together.
+- `groupUi: Record<content_hash, { keepIndex, skipped, open }>` (Files tab)
+  — per-group UI overrides, keyed by `content_hash` so they survive group
+  list re-renders. `keepIndex: null` means "use the computed default"
+  (`defaultKeepIndex`), not "no file is kept." The Files tab always keeps
+  exactly one copy — files in an exact-duplicate group are byte-identical,
+  so there's rarely a reason to keep more than one.
+- `imageGroupUi: Record<id, { keptIndices }>` (Images tab, `lib/groups.ts`)
+  — a deliberately different, simpler shape than the Files tab's, since
+  Images groups are only *visually* similar and a user might legitimately
+  want to keep an arbitrary subset (2 of 5 near-duplicates, say), not just
+  one or all. `keptIndices: null` means "use the computed default" (exactly
+  one photo, same `defaultKeepIndex` rule); once touched it's a concrete
+  `Set<number>`, which can be empty (trash the whole group) or the full set
+  (keep everything) — both are valid, explicit choices, not edge cases.
+  `resolveKeptIndices(files, ui)` is the one place that materializes the
+  default, used consistently by the commit handlers, the header's totals,
+  and every component that renders a keep/trash state, so they can't drift
+  out of sync with each other. The cluster `id` is a BLAKE3 hash of its
+  sorted member paths (computed in `get_similar_image_groups`), so it stays
+  stable across re-clustering as long as the same files end up together.
 - `imagesLoaded` — sticky "does the Images tab need to refetch" flag. It's
   cleared to `false` whenever a Files-tab scan completes, so the next time
   the user opens the Images tab it picks up newly-indexed photos.
@@ -495,3 +512,12 @@ cd src-tauri && cargo check   # type-check the Rust side
   rendered; if you're adding another `position: fixed` overlay anywhere
   downstream of a transformed/virtualized ancestor, it needs the same
   treatment.
+- **Images-tab keep state is a `Set<number>` of kept indices, not the Files
+  tab's single `keepIndex` + `skipped` boolean pair** — deliberately a
+  separate type (`ImageGroupUiState` vs. `GroupUiState`), scoped to the
+  Images tab only. The Files tab's model (keep exactly one, or keep all)
+  fits exact duplicates fine; Images groups are only visually similar, so a
+  user might legitimately want an arbitrary subset kept. Unifying the two
+  models was considered and rejected for now — it would touch the Files
+  tab's `GroupCard.tsx`/`ResultsScreen.tsx`, which aren't broken and weren't
+  part of what this was solving.

@@ -24,7 +24,7 @@ import {
   type ImageIndexProgress,
   type SimilarImageGroup,
 } from './lib/api'
-import { defaultKeepIndex, type GroupUiState } from './lib/groups'
+import { defaultKeepIndex, resolveKeptIndices, type GroupUiState, type ImageGroupUiState } from './lib/groups'
 
 type Screen = 'home' | 'scanning' | 'results' | 'empty' | 'error' | 'done'
 type Tab = 'files' | 'images'
@@ -61,7 +61,7 @@ export default function App() {
 
   const [imageThreshold, setImageThreshold] = useState(6)
   const [imageGroups, setImageGroups] = useState<SimilarImageGroup[]>([])
-  const [imageGroupUi, setImageGroupUi] = useState<Record<string, GroupUiState>>({})
+  const [imageGroupUi, setImageGroupUi] = useState<Record<string, ImageGroupUiState>>({})
   const [imagesLoading, setImagesLoading] = useState(false)
   const [imagesError, setImagesError] = useState('')
   const [imagesIndexedCount, setImagesIndexedCount] = useState(0)
@@ -200,11 +200,12 @@ export default function App() {
     }
   }
 
-  function patchImageGroupUi(id: string, patch: Partial<GroupUiState>) {
-    setImageGroupUi((prev) => ({
-      ...prev,
-      [id]: { ...emptyGroupUi(), ...prev[id], ...patch },
-    }))
+  // Sets (replaces, doesn't merge) which photos in one group are kept — the
+  // only mutation the Images tab needs: "keep newest" / "keep shortest
+  // path" / "select all" / "select none" / toggling one photo all reduce to
+  // "here is the new complete set of kept indices."
+  function setImageKeptIndices(id: string, keptIndices: Set<number>) {
+    setImageGroupUi((prev) => ({ ...prev, [id]: { keptIndices } }))
   }
 
   function handleChangeImageThreshold(value: number) {
@@ -219,11 +220,9 @@ export default function App() {
 
     for (const g of imageGroups) {
       g.files.forEach((f) => sizeByPath.set(f.path, f.size))
-      const ui = imageGroupUi[g.id]
-      if (ui?.skipped) continue
-      const keepIdx = ui?.keepIndex ?? defaultKeepIndex(g.files)
+      const kept = resolveKeptIndices(g.files, imageGroupUi[g.id])
       g.files.forEach((f, i) => {
-        if (i !== keepIdx) toTrash.push(f.path)
+        if (!kept.has(i)) toTrash.push(f.path)
       })
     }
 
@@ -245,10 +244,8 @@ export default function App() {
   // multiple sessions instead of needing to review every group before
   // anything can be committed.
   async function handleCommitGroupNow(group: SimilarImageGroup) {
-    const ui = imageGroupUi[group.id]
-    if (ui?.skipped) return
-    const keepIdx = ui?.keepIndex ?? defaultKeepIndex(group.files)
-    const toTrash = group.files.filter((_, i) => i !== keepIdx).map((f) => f.path)
+    const kept = resolveKeptIndices(group.files, imageGroupUi[group.id])
+    const toTrash = group.files.filter((_, i) => !kept.has(i)).map((f) => f.path)
     if (toTrash.length === 0) return
 
     const sizeByPath = new Map(group.files.map((f) => [f.path, f.size]))
@@ -367,8 +364,7 @@ export default function App() {
             hasIndexedImages={imagesIndexedCount > 0}
             threshold={imageThreshold}
             onChangeThreshold={handleChangeImageThreshold}
-            onToggleSkip={(id) => patchImageGroupUi(id, { skipped: !imageGroupUi[id]?.skipped })}
-            onSetKeepIndex={(id, index) => patchImageGroupUi(id, { keepIndex: index })}
+            onSetKeptIndices={setImageKeptIndices}
             showConfirm={showImageConfirm}
             onOpenConfirm={() => setShowImageConfirm(true)}
             onCloseConfirm={() => setShowImageConfirm(false)}

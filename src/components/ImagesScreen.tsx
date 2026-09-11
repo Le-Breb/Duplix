@@ -2,21 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { ImageIndexProgress, SimilarImageGroup } from '../lib/api'
 import { formatBytes } from '../lib/format'
-import { defaultKeepIndex, type GroupUiState } from '../lib/groups'
+import { resolveKeptIndices, type ImageGroupUiState } from '../lib/groups'
 import { ImageGroupCard } from './ImageGroupCard'
 import { ConfirmModal } from './ConfirmModal'
 
 interface ImagesScreenProps {
   groups: SimilarImageGroup[]
-  groupUi: Record<string, GroupUiState>
+  groupUi: Record<string, ImageGroupUiState>
   loading: boolean
   indexProgress: ImageIndexProgress | null
   error: string
   hasIndexedImages: boolean
   threshold: number
   onChangeThreshold: (value: number) => void
-  onToggleSkip: (id: string) => void
-  onSetKeepIndex: (id: string, index: number | null) => void
+  onSetKeptIndices: (id: string, keptIndices: Set<number>) => void
   showConfirm: boolean
   onOpenConfirm: () => void
   onCloseConfirm: () => void
@@ -34,7 +33,7 @@ interface ImagesScreenProps {
 // time (for any group the user hasn't touched yet), which alone defeats any
 // memoization downstream — React.memo can't tell "nothing changed" from
 // "here's a different-looking object that happens to have the same values."
-const EMPTY_UI: GroupUiState = { keepIndex: null, skipped: false, open: false }
+const EMPTY_UI: ImageGroupUiState = { keptIndices: null }
 
 export function ImagesScreen({
   groups,
@@ -45,8 +44,7 @@ export function ImagesScreen({
   hasIndexedImages,
   threshold,
   onChangeThreshold,
-  onToggleSkip,
-  onSetKeepIndex,
+  onSetKeptIndices,
   showConfirm,
   onOpenConfirm,
   onCloseConfirm,
@@ -98,14 +96,9 @@ export function ImagesScreen({
     let keptCount = 0
     let reclaimBytes = 0
     for (const g of groups) {
-      const ui = groupUi[g.id]
-      if (ui?.skipped) {
-        keptCount += g.files.length
-        continue
-      }
-      const keepIndex = ui?.keepIndex ?? defaultKeepIndex(g.files)
+      const kept = resolveKeptIndices(g.files, groupUi[g.id])
       g.files.forEach((f, i) => {
-        if (i === keepIndex) {
+        if (kept.has(i)) {
           keptCount += 1
         } else {
           trashCount += 1
@@ -263,8 +256,7 @@ export function ImagesScreen({
                   <ImageGroupCard
                     group={g}
                     ui={groupUi[g.id] ?? EMPTY_UI}
-                    onToggleSkip={onToggleSkip}
-                    onSetKeepIndex={onSetKeepIndex}
+                    onSetKeptIndices={onSetKeptIndices}
                     onCommitGroup={onCommitGroup}
                     committing={committingGroupId === g.id}
                   />

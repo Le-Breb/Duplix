@@ -2,15 +2,14 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { SimilarImageGroup } from '../lib/api'
 import { fileName, formatBytes, formatDate, relativePath } from '../lib/format'
-import { defaultKeepIndex, type GroupUiState } from '../lib/groups'
+import { defaultKeepIndex, resolveKeptIndices, type ImageGroupUiState } from '../lib/groups'
 import { ImageThumb } from './ImageThumb'
 
 interface ImageCompareModalProps {
   group: SimilarImageGroup
-  ui: GroupUiState
+  ui: ImageGroupUiState
   commonDir: string
-  onSetKeepIndex: (index: number | null) => void
-  onToggleSkip: () => void
+  onSetKeptIndices: (keptIndices: Set<number>) => void
   onCommitNow: () => void
   committing: boolean
   onClose: () => void
@@ -37,15 +36,16 @@ export function ImageCompareModal({
   group,
   ui,
   commonDir,
-  onSetKeepIndex,
-  onToggleSkip,
+  onSetKeptIndices,
   onCommitNow,
   committing,
   onClose,
 }: ImageCompareModalProps) {
   const [zoomedIndex, setZoomedIndex] = useState<number | null>(null)
-  const keepIndex = ui.keepIndex ?? defaultKeepIndex(group.files)
+  const kept = resolveKeptIndices(group.files, ui)
   const n = group.files.length
+  const allKept = kept.size === n
+  const noneKept = kept.size === 0
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -69,7 +69,25 @@ export function ImageCompareModal({
     group.files.forEach((f, i) => {
       if (f.mtime > group.files[best].mtime) best = i
     })
-    onSetKeepIndex(best)
+    onSetKeptIndices(new Set([best]))
+  }
+
+  const keepShortestPath = () => {
+    onSetKeptIndices(new Set([defaultKeepIndex(group.files)]))
+  }
+
+  const toggleKeepAll = () => {
+    onSetKeptIndices(allKept ? new Set() : new Set(group.files.map((_, i) => i)))
+  }
+
+  // Every photo's "keep" state toggles independently of the others — this is
+  // what lets the user keep an arbitrary subset (2 of 5, say), not just
+  // exactly one photo or all of them.
+  const toggleOne = (i: number) => {
+    const next = new Set(kept)
+    if (next.has(i)) next.delete(i)
+    else next.add(i)
+    onSetKeptIndices(next)
   }
 
   return createPortal(
@@ -77,7 +95,11 @@ export function ImageCompareModal({
       <div className="flex flex-none flex-wrap items-center justify-between gap-2 px-5 py-3.5">
         <div className="text-[13.5px]" style={{ color: 'var(--panel)' }}>
           {zoomedIndex === null ? (
-            `${n} similar photos`
+            noneKept ? (
+              `${n} similar photos · all will be trashed`
+            ) : (
+              `${n} similar photos · ${kept.size} to keep`
+            )
           ) : (
             <button
               onClick={() => setZoomedIndex(null)}
@@ -98,22 +120,22 @@ export function ImageCompareModal({
             Keep newest
           </button>
           <button
-            onClick={() => onSetKeepIndex(null)}
+            onClick={keepShortestPath}
             className="rounded-md px-2 py-1 text-xs"
             style={{ color: 'var(--accent-hover)' }}
           >
             Keep shortest path
           </button>
           <button
-            onClick={onToggleSkip}
+            onClick={toggleKeepAll}
             className="rounded-md px-2 py-1 text-xs"
             style={{ color: 'rgba(255,255,255,0.7)' }}
           >
-            {ui.skipped ? 'Include this set' : 'Keep all in this set'}
+            {allKept ? 'Keep none' : 'Keep all in this set'}
           </button>
           <button
             onClick={onCommitNow}
-            disabled={ui.skipped || committing}
+            disabled={allKept || committing}
             className="whitespace-nowrap rounded-md px-2.5 py-1 text-xs disabled:cursor-default disabled:opacity-50"
             style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
           >
@@ -135,7 +157,7 @@ export function ImageCompareModal({
           style={{ gridTemplateColumns: `repeat(${columns}, 1fr)`, gridAutoRows: '1fr' }}
         >
           {group.files.map((f, i) => {
-            const isKeep = i === keepIndex && !ui.skipped
+            const isKept = kept.has(i)
             return (
               <div
                 key={f.path}
@@ -162,16 +184,15 @@ export function ImageCompareModal({
                     </div>
                   </div>
                   <button
-                    onClick={() => !ui.skipped && onSetKeepIndex(i)}
-                    disabled={ui.skipped}
-                    className="flex-none whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-[9.5px] tracking-[0.05em] disabled:cursor-default"
+                    onClick={() => toggleOne(i)}
+                    className="flex-none whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-[9.5px] tracking-[0.05em]"
                     style={
-                      ui.skipped || isKeep
+                      isKept
                         ? { background: 'var(--tint)', color: 'var(--accent)' }
                         : { border: '1px solid rgba(255,255,255,0.3)', color: 'var(--panel)' }
                     }
                   >
-                    {ui.skipped || isKeep ? 'KEEP' : 'Keep this'}
+                    {isKept ? 'KEEP ✓' : '→ TRASH'}
                   </button>
                 </div>
               </div>
@@ -216,16 +237,15 @@ export function ImageCompareModal({
                 </div>
               </div>
               <button
-                onClick={() => !ui.skipped && onSetKeepIndex(zoomedIndex)}
-                disabled={ui.skipped}
-                className="flex-none whitespace-nowrap rounded-full px-3 py-1.5 font-mono text-[10px] tracking-[0.05em] disabled:cursor-default"
+                onClick={() => toggleOne(zoomedIndex)}
+                className="flex-none whitespace-nowrap rounded-full px-3 py-1.5 font-mono text-[10px] tracking-[0.05em]"
                 style={
-                  ui.skipped || zoomedIndex === keepIndex
+                  kept.has(zoomedIndex)
                     ? { background: 'var(--tint)', color: 'var(--accent)' }
                     : { border: '1px solid rgba(255,255,255,0.3)', color: 'var(--panel)' }
                 }
               >
-                {ui.skipped || zoomedIndex === keepIndex ? 'KEEP' : 'Keep this'}
+                {kept.has(zoomedIndex) ? 'KEEP ✓' : '→ TRASH'}
               </button>
             </div>
           </div>
