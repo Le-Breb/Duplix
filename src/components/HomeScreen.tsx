@@ -1,16 +1,16 @@
+import { useTranslation } from '../lib/i18n'
+
 interface HomeScreenProps {
   onChooseFolder: () => void
   busy: boolean
-  title?: string
-  description?: string
+  variant?: 'files' | 'images'
 }
 
-export function HomeScreen({
-  onChooseFolder,
-  busy,
-  title = 'Find duplicate files',
-  description = "Pick a folder and we'll compare every file byte for byte. Nothing moves until you say so.",
-}: HomeScreenProps) {
+export function HomeScreen({ onChooseFolder, busy, variant = 'files' }: HomeScreenProps) {
+  const { t } = useTranslation()
+  const title = variant === 'images' ? t('home.imagesTitle') : t('home.filesTitle')
+  const description = variant === 'images' ? t('home.imagesDescription') : t('home.filesDescription')
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-0 p-10">
       <div
@@ -40,10 +40,10 @@ export function HomeScreen({
           boxShadow: '0 1px 2px rgba(20,24,32,0.18)',
         }}
       >
-        {busy ? 'Working…' : 'Choose a folder to scan…'}
+        {busy ? t('home.working') : t('home.chooseFolder')}
       </button>
       <div className="mt-4 font-mono text-[11px]" style={{ color: 'var(--ink3)' }}>
-        Duplicates are sent to Trash, never erased
+        {t('home.trashNote')}
       </div>
     </div>
   )

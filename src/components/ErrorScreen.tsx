@@ -1,3 +1,5 @@
+import { useTranslation } from '../lib/i18n'
+
 interface ErrorScreenProps {
   rootPath: string
   message: string
@@ -6,6 +8,7 @@ interface ErrorScreenProps {
 }
 
 export function ErrorScreen({ rootPath, message, onGoHome, onRetry }: ErrorScreenProps) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-10">
       <div
@@ -19,7 +22,7 @@ export function ErrorScreen({ rootPath, message, onGoHome, onRetry }: ErrorScree
         !
       </div>
       <div className="mt-5 text-[22px]" style={{ color: 'var(--ink)' }}>
-        We couldn't scan this folder
+        {t('error.title')}
       </div>
       <div
         className="mt-2 max-w-[460px] text-center text-sm leading-[1.55]"
@@ -39,14 +42,14 @@ export function ErrorScreen({ rootPath, message, onGoHome, onRetry }: ErrorScree
           className="rounded-[7px] px-[18px] py-[11px] text-sm"
           style={{ border: '1px solid var(--line2)', background: 'var(--panel)', color: 'var(--ink)' }}
         >
-          Choose another folder
+          {t('error.chooseAnother')}
         </button>
         <button
           onClick={onRetry}
           className="rounded-[7px] px-[18px] py-[11px] text-sm"
           style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
         >
-          Try again
+          {t('error.tryAgain')}
         </button>
       </div>
     </div>

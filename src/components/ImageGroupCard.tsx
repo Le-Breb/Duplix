@@ -2,6 +2,7 @@ import { memo, useMemo, useState } from 'react'
 import type { SimilarImageGroup } from '../lib/api'
 import { commonDirPrefix, fileName, formatBytes } from '../lib/format'
 import { resolveKeptIndices, type ImageGroupUiState } from '../lib/groups'
+import { useTranslation } from '../lib/i18n'
 import { ImageThumb } from './ImageThumb'
 import { ImageCompareModal } from './ImageCompareModal'
 
@@ -17,12 +18,12 @@ interface ImageGroupCardProps {
   committing: boolean
 }
 
-function similarityLabel(maxDistance: number): string {
-  if (maxDistance === 0) return 'Identical'
-  if (maxDistance <= 4) return 'Nearly identical'
-  if (maxDistance <= 8) return 'Very similar'
-  if (maxDistance <= 16) return 'Similar'
-  return 'Loosely similar'
+function similarityLabel(maxDistance: number, t: ReturnType<typeof useTranslation>['t']): string {
+  if (maxDistance === 0) return t('imageGroupCard.similarityIdentical')
+  if (maxDistance <= 4) return t('imageGroupCard.similarityNearlyIdentical')
+  if (maxDistance <= 8) return t('imageGroupCard.similarityVerySimilar')
+  if (maxDistance <= 16) return t('imageGroupCard.similaritySimilar')
+  return t('imageGroupCard.similarityLooselySimilar')
 }
 
 // A single group row opens the comparison view — there's no separate small
@@ -48,6 +49,7 @@ export const ImageGroupCard = memo(function ImageGroupCard({
   onCommitGroup,
   committing,
 }: ImageGroupCardProps) {
+  const { t } = useTranslation()
   const [comparing, setComparing] = useState(false)
   const kept = resolveKeptIndices(group.files, ui)
   const allKept = kept.size === group.files.length
@@ -77,8 +79,8 @@ export const ImageGroupCard = memo(function ImageGroupCard({
             {fileName(previewFile.path)}
           </div>
           <div className="mt-1 truncate text-[12.5px]" style={{ color: 'var(--ink2)' }}>
-            {group.files.length} similar photos · {similarityLabel(group.max_distance)}
-            {kept.size > 1 && !allKept && ` · ${kept.size} to keep`}
+            {t('imageGroupCard.similarPhotos', group.files.length)} · {similarityLabel(group.max_distance, t)}
+            {kept.size > 1 && !allKept && t('imageGroupCard.toKeep', kept.size)}
           </div>
         </div>
         {allKept ? (
@@ -86,14 +88,14 @@ export const ImageGroupCard = memo(function ImageGroupCard({
             className="rounded-full px-[9px] py-1 font-mono text-[10px] tracking-[0.06em]"
             style={{ border: '1px solid var(--line)', color: 'var(--ink3)' }}
           >
-            KEEPING ALL
+            {t('groupCard.keepingAll')}
           </div>
         ) : noneKept ? (
           <div
             className="rounded-full px-[9px] py-1 font-mono text-[10px] tracking-[0.06em]"
             style={{ border: '1px solid var(--warn-line)', background: 'var(--warn-bg)', color: 'var(--warn-ink)' }}
           >
-            TRASHING ALL
+            {t('imageGroupCard.trashingAll')}
           </div>
         ) : (
           <div className="text-right">
@@ -101,12 +103,12 @@ export const ImageGroupCard = memo(function ImageGroupCard({
               {formatBytes(reclaim)}
             </div>
             <div className="mt-0.5 text-[11px]" style={{ color: 'var(--ink3)' }}>
-              to reclaim
+              {t('groupCard.toReclaim')}
             </div>
           </div>
         )}
         <div className="text-[11px]" style={{ color: committing ? 'var(--ink3)' : 'var(--accent)' }}>
-          {committing ? 'Trashing…' : 'Compare'}
+          {committing ? t('imageGroupCard.trashing') : t('imageGroupCard.compare')}
         </div>
       </button>
 

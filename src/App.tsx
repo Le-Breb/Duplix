@@ -449,8 +449,7 @@ export default function App() {
               <HomeScreen
                 onChooseFolder={handleChooseImagesFolder}
                 busy={imagesBusy || scanInProgress}
-                title="Find similar photos"
-                description="Pick a folder and we'll group photos that look alike — resized, recompressed, or lightly edited copies included. Nothing moves until you say so."
+                variant="images"
               />
             )}
 

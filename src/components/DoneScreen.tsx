@@ -1,4 +1,5 @@
 import { formatBytes } from '../lib/format'
+import { useTranslation } from '../lib/i18n'
 
 interface DoneScreenProps {
   trashedCount: number
@@ -8,6 +9,7 @@ interface DoneScreenProps {
 }
 
 export function DoneScreen({ trashedCount, reclaimedBytes, failed, onGoHome }: DoneScreenProps) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-10">
       <div
@@ -17,10 +19,10 @@ export function DoneScreen({ trashedCount, reclaimedBytes, failed, onGoHome }: D
         ✓
       </div>
       <div className="mt-5 text-[22px]" style={{ color: 'var(--ink)' }}>
-        {trashedCount.toLocaleString()} files sent to Trash
+        {t('done.filesSent', trashedCount)}
       </div>
       <div className="mt-2 text-sm" style={{ color: 'var(--ink2)' }}>
-        {formatBytes(reclaimedBytes)} reclaimed. Your Trash still holds them if you want them back.
+        {t('done.reclaimedNote', formatBytes(reclaimedBytes))}
       </div>
 
       {failed.length > 0 && (
@@ -32,7 +34,7 @@ export function DoneScreen({ trashedCount, reclaimedBytes, failed, onGoHome }: D
             color: 'var(--warn-ink)',
           }}
         >
-          <div>{failed.length} file(s) could not be moved to Trash:</div>
+          <div>{t('done.failedIntro', failed.length)}</div>
           {failed.slice(0, 5).map(([path]) => (
             <div key={path} className="truncate">
               {path}
@@ -46,7 +48,7 @@ export function DoneScreen({ trashedCount, reclaimedBytes, failed, onGoHome }: D
         className="mt-[30px] rounded-[7px] px-5 py-[11px] text-sm"
         style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
       >
-        Scan another folder
+        {t('common.scanAnotherFolder')}
       </button>
     </div>
   )

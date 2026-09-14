@@ -1,3 +1,5 @@
+import { useTranslation } from '../lib/i18n'
+
 type Tab = 'files' | 'images'
 
 interface SidebarProps {
@@ -9,6 +11,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isDark, onToggleTheme, onOpenSettings, activeTab, onSelectTab }: SidebarProps) {
+  const { t } = useTranslation()
   return (
     <div
       className="flex w-[68px] flex-none flex-col items-center gap-1 py-3.5 pb-3"
@@ -31,14 +34,14 @@ export function Sidebar({ isDark, onToggleTheme, onOpenSettings, activeTab, onSe
           className="font-mono text-[8.5px] tracking-[0.08em]"
           style={{ color: activeTab === 'files' ? 'var(--accent)' : 'var(--ink3)' }}
         >
-          FILES
+          {t('sidebar.files')}
         </div>
       </button>
 
       <button
         onClick={() => onSelectTab('images')}
         className="flex w-[52px] cursor-pointer flex-col items-center gap-1.5 rounded-[7px] py-2 pb-[7px]"
-        title="Near-duplicate photo review"
+        title={t('sidebar.imagesTitle')}
         style={
           activeTab === 'images'
             ? { background: 'var(--rail-active)', boxShadow: 'inset 0 0 0 1px var(--rail-active-line)' }
@@ -53,7 +56,7 @@ export function Sidebar({ isDark, onToggleTheme, onOpenSettings, activeTab, onSe
           className="font-mono text-[8.5px] tracking-[0.08em]"
           style={{ color: activeTab === 'images' ? 'var(--accent)' : 'var(--ink3)' }}
         >
-          IMAGES
+          {t('sidebar.images')}
         </div>
       </button>
 
@@ -83,7 +86,7 @@ export function Sidebar({ isDark, onToggleTheme, onOpenSettings, activeTab, onSe
           className="font-mono text-[8.5px] tracking-[0.08em]"
           style={{ color: 'var(--ink3)' }}
         >
-          DARK
+          {t('sidebar.dark')}
         </div>
       </button>
 
@@ -100,7 +103,7 @@ export function Sidebar({ isDark, onToggleTheme, onOpenSettings, activeTab, onSe
           className="font-mono text-[8.5px] tracking-[0.08em]"
           style={{ color: 'var(--ink3)' }}
         >
-          SETTINGS
+          {t('sidebar.settings')}
         </div>
       </button>
     </div>

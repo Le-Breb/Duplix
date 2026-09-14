@@ -1,6 +1,7 @@
 import type { DuplicateGroup } from '../lib/api'
 import { formatBytes } from '../lib/format'
 import { reclaimableBytes, type GroupUiState } from '../lib/groups'
+import { useTranslation } from '../lib/i18n'
 import { GroupCard } from './GroupCard'
 import { ConfirmModal } from './ConfirmModal'
 
@@ -33,6 +34,7 @@ export function ResultsScreen({
   onCommit,
   committing,
 }: ResultsScreenProps) {
+  const { t } = useTranslation()
   let trashCount = 0
   let keptCount = 0
   let reclaimBytes = 0
@@ -58,11 +60,10 @@ export function ResultsScreen({
             {rootPath}
           </div>
           <div className="mt-[7px] text-xl tracking-[-0.01em]" style={{ color: 'var(--ink)' }}>
-            {groups.length} sets of identical files
+            {t('results.setsCount', groups.length)}
           </div>
           <div className="mt-[5px] text-[13px]" style={{ color: 'var(--ink2)' }}>
-            {scannedCount.toLocaleString()} files checked · biggest savings first · one copy kept
-            in each set
+            {t('results.summary', scannedCount)}
           </div>
         </div>
         <div className="flex items-center gap-3.5">
@@ -71,7 +72,7 @@ export function ResultsScreen({
               {formatBytes(reclaimBytes)}
             </div>
             <div className="mt-0.5 text-[11px]" style={{ color: 'var(--ink3)' }}>
-              {trashCount.toLocaleString()} files to Trash
+              {t('results.filesToTrash', trashCount)}
             </div>
           </div>
           <button
@@ -80,7 +81,7 @@ export function ResultsScreen({
             className="whitespace-nowrap rounded-[7px] px-[18px] py-[11px] text-sm disabled:opacity-50"
             style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
           >
-            Move to Trash…
+            {t('common.moveToTrash')}
           </button>
         </div>
       </div>

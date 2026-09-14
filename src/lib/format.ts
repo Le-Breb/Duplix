@@ -10,8 +10,8 @@ export function formatBytes(bytes: number): string {
   return Math.max(1, Math.round(bytes / 1024)) + ' KB'
 }
 
-export function formatDate(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toLocaleDateString(undefined, {
+export function formatDate(unixSeconds: number, locale?: string): string {
+  return new Date(unixSeconds * 1000).toLocaleDateString(locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

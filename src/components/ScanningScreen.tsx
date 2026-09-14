@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from '../lib/i18n'
 
 interface ScanningScreenProps {
   rootPath: string
@@ -9,6 +10,7 @@ interface ScanningScreenProps {
 
 export function ScanningScreen({ rootPath, scanned, currentPath, onCancel }: ScanningScreenProps) {
   const [confirming, setConfirming] = useState(false)
+  const { t } = useTranslation()
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-10">
@@ -16,7 +18,7 @@ export function ScanningScreen({ rootPath, scanned, currentPath, onCancel }: Sca
         className="font-mono text-[11px] tracking-[0.1em]"
         style={{ color: 'var(--ink3)' }}
       >
-        SCANNING
+        {t('scanning.label')}
       </div>
       <div className="mt-3 text-sm" style={{ color: 'var(--ink2)' }}>
         {rootPath}
@@ -28,7 +30,7 @@ export function ScanningScreen({ rootPath, scanned, currentPath, onCancel }: Sca
         {scanned.toLocaleString()}
       </div>
       <div className="mt-1 text-[13px]" style={{ color: 'var(--ink2)' }}>
-        files checked
+        {t('scanning.filesChecked')}
       </div>
       <div
         className="mt-[26px] h-[3px] w-[340px] overflow-hidden rounded-full"
@@ -56,7 +58,7 @@ export function ScanningScreen({ rootPath, scanned, currentPath, onCancel }: Sca
           }}
         >
           <div className="text-[13px]" style={{ color: 'var(--ink)' }}>
-            Stop scanning? Nothing has been changed yet.
+            {t('scanning.confirmStop')}
           </div>
           <div className="flex gap-2">
             <button
@@ -68,14 +70,14 @@ export function ScanningScreen({ rootPath, scanned, currentPath, onCancel }: Sca
                 color: 'var(--ink)',
               }}
             >
-              Stop scan
+              {t('scanning.stopScan')}
             </button>
             <button
               onClick={() => setConfirming(false)}
               className="rounded-md px-3.5 py-2 text-[13px]"
               style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
             >
-              Keep going
+              {t('scanning.keepGoing')}
             </button>
           </div>
         </div>
@@ -89,7 +91,7 @@ export function ScanningScreen({ rootPath, scanned, currentPath, onCancel }: Sca
             color: 'var(--ink2)',
           }}
         >
-          Cancel scan
+          {t('scanning.cancelScan')}
         </button>
       )}
     </div>

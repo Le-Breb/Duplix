@@ -1,6 +1,7 @@
 import type { DuplicateGroup } from '../lib/api'
 import { formatBytes, formatDate, fileExt, fileName } from '../lib/format'
 import { defaultKeepIndex, reclaimableBytes, type GroupUiState } from '../lib/groups'
+import { localeFor, useTranslation } from '../lib/i18n'
 
 interface GroupCardProps {
   group: DuplicateGroup
@@ -11,6 +12,7 @@ interface GroupCardProps {
 }
 
 export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepIndex }: GroupCardProps) {
+  const { t, language } = useTranslation()
   const keepIndex = ui.keepIndex ?? defaultKeepIndex(group.files)
   const keptFile = group.files[keepIndex]
   const ext = fileExt(keptFile.path) || group.file_type.toUpperCase()
@@ -53,7 +55,7 @@ export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepInde
             {fileName(keptFile.path)}
           </div>
           <div className="mt-1 truncate text-[12.5px]" style={{ color: 'var(--ink2)' }}>
-            {group.files.length} identical copies · {formatBytes(group.size)} each
+            {t('groupCard.copies', group.files.length, formatBytes(group.size))}
           </div>
         </div>
         {ui.skipped ? (
@@ -61,7 +63,7 @@ export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepInde
             className="rounded-full px-[9px] py-1 font-mono text-[10px] tracking-[0.06em]"
             style={{ border: '1px solid var(--line)', color: 'var(--ink3)' }}
           >
-            KEEPING ALL
+            {t('groupCard.keepingAll')}
           </div>
         ) : (
           <div className="text-right">
@@ -69,7 +71,7 @@ export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepInde
               {formatBytes(reclaim)}
             </div>
             <div className="mt-0.5 text-[11px]" style={{ color: 'var(--ink3)' }}>
-              to reclaim
+              {t('groupCard.toReclaim')}
             </div>
           </div>
         )}
@@ -81,27 +83,27 @@ export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepInde
       {ui.open && (
         <div style={{ borderTop: '1px solid var(--line3)', background: 'var(--bg3)' }}>
           <div className="flex items-center gap-3.5 py-2.5 pl-[74px] pr-3.5 text-xs" style={{ color: 'var(--ink3)' }}>
-            <div className="flex-1">Pick the copy to keep</div>
+            <div className="flex-1">{t('groupCard.pickCopy')}</div>
             <button
               onClick={keepNewest}
               className="rounded-md px-2 py-[3px] text-xs"
               style={{ color: 'var(--accent)' }}
             >
-              Keep newest
+              {t('groupCard.keepNewest')}
             </button>
             <button
               onClick={() => onSetKeepIndex(null)}
               className="rounded-md px-2 py-[3px] text-xs"
               style={{ color: 'var(--accent)' }}
             >
-              Keep shortest path
+              {t('groupCard.keepShortestPath')}
             </button>
             <button
               onClick={onToggleSkip}
               className="rounded-md px-2 py-[3px] text-xs"
               style={{ color: 'var(--ink3)' }}
             >
-              {ui.skipped ? 'Include this set' : 'Keep all in this set'}
+              {ui.skipped ? t('groupCard.includeSet') : t('groupCard.keepAllInSet')}
             </button>
           </div>
 
@@ -138,7 +140,7 @@ export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepInde
                     {f.path}
                   </div>
                   <div className="mt-[3px] text-[11.5px]" style={{ color: 'var(--ink3)' }}>
-                    Modified {formatDate(f.mtime)} · {formatBytes(group.size)}
+                    {t('groupCard.modified', formatDate(f.mtime, localeFor(language)), formatBytes(group.size))}
                   </div>
                 </div>
                 {ui.skipped ? (
@@ -146,7 +148,7 @@ export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepInde
                     className="rounded-full px-2.5 py-1 font-mono text-[10px] tracking-[0.06em]"
                     style={{ border: '1px solid var(--line)', color: 'var(--ink3)' }}
                   >
-                    KEEP
+                    {t('groupCard.keep')}
                   </div>
                 ) : isKeep ? (
                   <div
@@ -157,7 +159,7 @@ export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepInde
                       color: 'var(--accent)',
                     }}
                   >
-                    KEEP
+                    {t('groupCard.keep')}
                   </div>
                 ) : (
                   isTrash && (
@@ -169,7 +171,7 @@ export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepInde
                         color: 'var(--warn-ink)',
                       }}
                     >
-                      → TRASH
+                      {t('groupCard.toTrash')}
                     </div>
                   )
                 )}

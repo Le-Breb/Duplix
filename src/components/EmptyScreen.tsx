@@ -1,3 +1,5 @@
+import { useTranslation } from '../lib/i18n'
+
 interface EmptyScreenProps {
   rootPath: string
   scanned: number
@@ -5,6 +7,7 @@ interface EmptyScreenProps {
 }
 
 export function EmptyScreen({ rootPath, scanned, onGoHome }: EmptyScreenProps) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-10">
       <div
@@ -14,17 +17,17 @@ export function EmptyScreen({ rootPath, scanned, onGoHome }: EmptyScreenProps) {
         ✓
       </div>
       <div className="mt-5 text-[22px]" style={{ color: 'var(--ink)' }}>
-        No duplicates in this folder
+        {t('empty.title')}
       </div>
       <div className="mt-2 text-sm" style={{ color: 'var(--ink2)' }}>
-        We checked {scanned.toLocaleString()} files in {rootPath}. Every one is unique.
+        {t('empty.description', scanned, rootPath)}
       </div>
       <button
         onClick={onGoHome}
         className="mt-6 rounded-[7px] px-5 py-[11px] text-sm"
         style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
       >
-        Scan another folder
+        {t('common.scanAnotherFolder')}
       </button>
     </div>
   )

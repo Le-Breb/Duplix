@@ -1,4 +1,5 @@
 import { formatBytes } from '../lib/format'
+import { useTranslation } from '../lib/i18n'
 
 interface ConfirmModalProps {
   trashCount: number
@@ -17,6 +18,7 @@ export function ConfirmModal({
   onConfirm,
   busy,
 }: ConfirmModalProps) {
+  const { t } = useTranslation()
   return (
     <div
       className="absolute inset-0 flex items-center justify-center p-10"
@@ -27,15 +29,14 @@ export function ConfirmModal({
         style={{ background: 'var(--panel)', boxShadow: '0 20px 48px rgba(20,24,32,0.28)' }}
       >
         <div className="text-[19px] tracking-[-0.01em]" style={{ color: 'var(--ink)' }}>
-          Move {trashCount.toLocaleString()} files to Trash
+          {t('confirm.title', trashCount)}
         </div>
         <div className="mt-2.5 text-[13.5px] leading-[1.6]" style={{ color: 'var(--ink2)' }}>
-          You'll reclaim {formatBytes(reclaimedBytes)}. One copy of every file stays exactly where
-          it is. The rest go to your Trash, so you can put them back any time.
+          {t('confirm.description', formatBytes(reclaimedBytes))}
         </div>
         <div className="mt-4 overflow-hidden rounded-md" style={{ border: '1px solid var(--line)' }}>
           <div className="flex justify-between px-3 py-[9px] text-[12.5px]" style={{ color: 'var(--ink2)' }}>
-            <div>Files moved</div>
+            <div>{t('confirm.filesMoved')}</div>
             <div className="font-mono" style={{ color: 'var(--ink)' }}>
               {trashCount.toLocaleString()}
             </div>
@@ -44,7 +45,7 @@ export function ConfirmModal({
             className="flex justify-between px-3 py-[9px] text-[12.5px]"
             style={{ color: 'var(--ink2)', borderTop: '1px solid var(--line3)' }}
           >
-            <div>Files kept</div>
+            <div>{t('confirm.filesKept')}</div>
             <div className="font-mono" style={{ color: 'var(--ink)' }}>
               {keptCount.toLocaleString()}
             </div>
@@ -53,7 +54,7 @@ export function ConfirmModal({
             className="flex justify-between px-3 py-[9px] text-[12.5px]"
             style={{ color: 'var(--ink2)', borderTop: '1px solid var(--line3)' }}
           >
-            <div>Space reclaimed</div>
+            <div>{t('confirm.spaceReclaimed')}</div>
             <div className="font-mono" style={{ color: 'var(--ink)' }}>
               {formatBytes(reclaimedBytes)}
             </div>
@@ -66,7 +67,7 @@ export function ConfirmModal({
             className="rounded-md px-4 py-2.5 text-[13.5px] disabled:opacity-60"
             style={{ border: '1px solid var(--line2)', background: 'var(--panel)', color: 'var(--ink)' }}
           >
-            Not yet
+            {t('confirm.notYet')}
           </button>
           <button
             onClick={onConfirm}
@@ -74,7 +75,7 @@ export function ConfirmModal({
             className="rounded-md px-4 py-2.5 text-[13.5px] disabled:opacity-60"
             style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
           >
-            {busy ? 'Moving…' : 'Move to Trash'}
+            {busy ? t('confirm.moving') : t('confirm.moveToTrashButton')}
           </button>
         </div>
       </div>

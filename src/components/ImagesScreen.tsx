@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import type { ImageIndexProgress, SimilarImageGroup } from '../lib/api'
 import { formatBytes } from '../lib/format'
 import { resolveKeptIndices, type ImageGroupUiState } from '../lib/groups'
+import { useTranslation } from '../lib/i18n'
 import { ImageGroupCard } from './ImageGroupCard'
 import { ConfirmModal } from './ConfirmModal'
 
@@ -63,6 +64,7 @@ export function ImagesScreen({
   lastResult,
   onDismissResult,
 }: ImagesScreenProps) {
+  const { t } = useTranslation()
   const [sliderValue, setSliderValue] = useState(threshold)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -127,22 +129,21 @@ export function ImagesScreen({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <div className="min-w-0 truncate font-mono text-[11px] tracking-[0.04em]" style={{ color: 'var(--ink3)' }}>
-                {includeOtherFolders ? `${rootPath} + previously scanned folders` : rootPath}
+                {includeOtherFolders ? t('images.rootWithHistory', rootPath) : rootPath}
               </div>
               <button
                 onClick={onChangeFolder}
                 className="flex-none text-[11px] underline"
                 style={{ color: 'var(--ink3)' }}
               >
-                Change folder…
+                {t('images.changeFolder')}
               </button>
             </div>
             <div className="mt-[7px] text-xl tracking-[-0.01em]" style={{ color: 'var(--ink)' }}>
-              {groups.length} sets of similar photos
+              {t('images.setsCount', groups.length)}
             </div>
             <div className="mt-[5px] text-[13px]" style={{ color: 'var(--ink2)' }}>
-              Grouped by visual similarity, not just identical bytes — resized, recompressed, or
-              lightly edited copies count too.
+              {t('images.groupedDescription')}
             </div>
           </div>
           <div className="flex items-center gap-3.5">
@@ -151,7 +152,7 @@ export function ImagesScreen({
                 {formatBytes(reclaimBytes)}
               </div>
               <div className="mt-0.5 text-[11px]" style={{ color: 'var(--ink3)' }}>
-                {trashCount.toLocaleString()} photos to Trash
+                {t('images.photosToTrash', trashCount)}
               </div>
             </div>
             <button
@@ -160,14 +161,14 @@ export function ImagesScreen({
               className="whitespace-nowrap rounded-[7px] px-[18px] py-[11px] text-sm disabled:opacity-50"
               style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
             >
-              Move to Trash…
+              {t('common.moveToTrash')}
             </button>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="font-mono text-[10.5px] tracking-[0.05em]" style={{ color: 'var(--ink3)' }}>
-            STRICT
+            {t('images.strict')}
           </div>
           <input
             type="range"
@@ -179,7 +180,7 @@ export function ImagesScreen({
             style={{ accentColor: 'var(--accent)' }}
           />
           <div className="font-mono text-[10.5px] tracking-[0.05em]" style={{ color: 'var(--ink3)' }}>
-            LOOSE
+            {t('images.loose')}
           </div>
         </div>
 
@@ -191,7 +192,7 @@ export function ImagesScreen({
             className="accent-[var(--accent)]"
             style={{ accentColor: 'var(--accent)' }}
           />
-          Include photos from folders scanned before, too
+          {t('images.includeOtherFolders')}
         </label>
       </div>
 
@@ -203,12 +204,11 @@ export function ImagesScreen({
               style={{ border: '1px solid var(--tint-line)', background: 'var(--tint)', color: 'var(--accent)' }}
             >
               <div>
-                {lastResult.trashedCount.toLocaleString()} photos sent to Trash ·{' '}
-                {formatBytes(lastResult.reclaimedBytes)} reclaimed
+                {t('images.resultTrashed', lastResult.trashedCount, formatBytes(lastResult.reclaimedBytes))}
               </div>
               {lastResult.failed.length === 0 && (
                 <button onClick={onDismissResult} className="text-[11px]" style={{ color: 'var(--accent)' }}>
-                  Dismiss
+                  {t('images.dismiss')}
                 </button>
               )}
             </div>
@@ -219,12 +219,9 @@ export function ImagesScreen({
               style={{ border: '1px solid var(--warn-line)', background: 'var(--warn-bg)', color: 'var(--warn-ink)' }}
             >
               <div className="flex items-center justify-between">
-                <div>
-                  {lastResult.failed.length.toLocaleString()} photo{lastResult.failed.length === 1 ? '' : 's'} could
-                  not be moved to Trash
-                </div>
+                <div>{t('images.resultFailed', lastResult.failed.length)}</div>
                 <button onClick={onDismissResult} className="text-[11px]" style={{ color: 'var(--warn-ink)' }}>
-                  Dismiss
+                  {t('images.dismiss')}
                 </button>
               </div>
               {lastResult.failed.slice(0, 5).map(([path, reason]) => (
@@ -241,7 +238,7 @@ export function ImagesScreen({
         {loading && indexProgress && indexProgress.total > 0 && (
           <div className="mx-auto mt-16 max-w-[360px]">
             <div className="text-center text-sm" style={{ color: 'var(--ink2)' }}>
-              Indexing photos… {indexProgress.indexed.toLocaleString()} / {indexProgress.total.toLocaleString()}
+              {t('images.indexing', indexProgress.indexed, indexProgress.total)}
             </div>
             <div
               className="mt-3 h-1.5 overflow-hidden rounded-full"
@@ -256,14 +253,14 @@ export function ImagesScreen({
               />
             </div>
             <div className="mt-2 text-center text-[11.5px]" style={{ color: 'var(--ink3)' }}>
-              Only needed once per photo — future visits are instant.
+              {t('images.indexingNote')}
             </div>
           </div>
         )}
 
         {loading && !(indexProgress && indexProgress.total > 0) && (
           <div className="mt-10 text-center text-sm" style={{ color: 'var(--ink3)' }}>
-            Comparing photos…
+            {t('images.comparing')}
           </div>
         )}
 
@@ -276,19 +273,19 @@ export function ImagesScreen({
         {!loading && !error && !hasIndexedImages && (
           <div className="mt-10 flex flex-col items-center text-center">
             <div className="text-[15px]" style={{ color: 'var(--ink)' }}>
-              No photos found
+              {t('images.noPhotosFound')}
             </div>
             <div className="mt-2 max-w-[380px] text-sm" style={{ color: 'var(--ink2)' }}>
               {includeOtherFolders
-                ? "This folder (and every folder scanned before it) doesn't have any photos Duplix can decode."
-                : "This folder doesn't have any photos Duplix can decode. Check \"include photos from folders scanned before\" to widen the search, or choose a different folder."}
+                ? t('images.noPhotosDescriptionInclude')
+                : t('images.noPhotosDescription')}
             </div>
           </div>
         )}
 
         {!loading && !error && hasIndexedImages && groups.length === 0 && (
           <div className="mt-10 text-center text-sm" style={{ color: 'var(--ink2)' }}>
-            No similar photos found at this sensitivity. Try loosening it.
+            {t('images.noSimilarFound')}
           </div>
         )}
 
