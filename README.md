@@ -11,16 +11,30 @@ this project up cold.
 ## What it does (v1 scope)
 
 - **Local filesystem only.** No cloud connectors.
-- **Files tab: exact duplicates.** Files are grouped by BLAKE3 content hash —
-  same hash means byte-identical content.
-- **Images tab: near-duplicates.** Images are additionally grouped by visual
-  similarity (a DCT-based perceptual hash, clustered by Hamming distance), so
-  resized, recompressed, or lightly edited copies show up too — see
-  "Near-duplicate image detection" below.
+- **Two independent tabs, each its own pick-a-folder-and-scan flow.** The
+  Files tab and Images tab don't share a "current folder" — each has its own
+  Home/Scanning/Results state in `App.tsx` and asks for a folder separately.
+- **Files tab: exact duplicates, scoped to the scanned folder.** Files are
+  grouped by BLAKE3 content hash — same hash means byte-identical content —
+  and only files under the folder just scanned are considered; a duplicate
+  whose other copy lives in some other folder scanned in the past doesn't
+  show up.
+- **Images tab: near-duplicates, scoped to the scanned folder by default.**
+  Images are grouped by visual similarity (a DCT-based perceptual hash,
+  clustered by Hamming distance), so resized, recompressed, or lightly
+  edited copies show up too — see "Near-duplicate image detection" below.
+  An "include photos from folders scanned before, too" checkbox opts into
+  searching every folder ever scanned instead of just this one.
 - **File types:** images, text files, PDFs (see the extension allowlist in
-  `src-tauri/src/scanner.rs::classify_ext`). Everything else is skipped.
+  `src-tauri/src/scanner.rs::classify_ext`). Everything else is skipped. The
+  Images tab further narrows results to `file_type = 'image'`, even though
+  the scan behind it (same `start_scan`/`scan_folder` as the Files tab)
+  still walks and hashes every allowed type in the folder.
 - **Manual scan only.** No scheduling, no persisted folder list. Each scan is
-  triggered by "Choose a folder to scan…" on the Home screen.
+  triggered by "Choose a folder to scan…" on that tab's Home screen. Only one
+  scan runs at a time — both tabs' entry points are disabled while either is
+  scanning, since they share the same backend scan/cancel commands and
+  events (`scanInProgress` in `App.tsx`).
 - **Deletes go to OS trash**, never permanent delete (via the `trash` crate).
 - Not built (deliberately out of scope for v1): video support, cloud sync,
   scan scheduling/history, any undo mechanism beyond what the OS trash
@@ -54,23 +68,35 @@ src-tauri/                     Rust backend (the Tauri "core")
 
 src/                            React frontend
   App.tsx                       Top-level state: `activeTab` (Files/Images)
-                                 plus the Files screen state machine, scan
-                                 progress, duplicate groups, and a parallel
-                                 set of state for the Images tab.
+                                 plus one screen state machine per tab (each
+                                 tab has its own Home/Scanning/Results/Error
+                                 states — `screen` for Files,
+                                 `imagesScreen` for Images), scan progress,
+                                 duplicate groups, and `scanInProgress`
+                                 (shared, since both tabs drive the same
+                                 backend scan/cancel commands and can't
+                                 usefully run at once).
   components/
     Sidebar.tsx                 Left rail: Files tab, Images tab, dark-mode
                                  toggle, Settings.
-    HomeScreen.tsx               "Choose a folder to scan…" entry screen.
+    HomeScreen.tsx               "Choose a folder to scan…" entry screen,
+                                 reused by both tabs with different copy
+                                 (`title`/`description` props) — the Files
+                                 tab's default text ("byte for byte") vs. the
+                                 Images tab's ("photos that look alike").
     ScanningScreen.tsx           Live progress (files scanned, current path,
-                                 cancel-with-confirmation).
+                                 cancel-with-confirmation) — reused by both
+                                 tabs as-is.
     ResultsScreen.tsx            Header (totals, "Move to Trash…") + the list
                                  of duplicate groups. (Files tab)
     GroupCard.tsx                One duplicate group: expand/collapse, pick
                                  which copy to keep, per-file trash/keep pill.
                                  (Files tab)
-    ImagesScreen.tsx             Header (totals, sensitivity slider, "Move to
-                                 Trash…") + the list of similar-photo groups.
-                                 (Images tab)
+    ImagesScreen.tsx             Header (root path + "Change folder…",
+                                 totals, sensitivity slider, "include photos
+                                 from folders scanned before, too" checkbox,
+                                 "Move to Trash…") + the list of
+                                 similar-photo groups. (Images tab)
     ImageGroupCard.tsx           A similar-photo group's summary row (fixed
                                  height — no inline expand): thumbnail,
                                  filename, count/similarity, reclaim size.
@@ -102,7 +128,14 @@ src/                            React frontend
                                  trash, and a way back to Home. (Files tab —
                                  the Images tab shows an inline dismissible
                                  banner instead, since it isn't a linear flow.)
-    EmptyScreen.tsx / ErrorScreen.tsx   No-duplicates and scan-failure states.
+    EmptyScreen.tsx / ErrorScreen.tsx   No-duplicates and scan-failure states
+                                 — both reused by the Images tab for its own
+                                 scan (an empty-results screen with 0 exact
+                                 duplicate groups isn't shown there, though;
+                                 ImagesScreen renders its own "no photos" /
+                                 "nothing similar" states inline instead,
+                                 since it's a persistent, incrementally-worked-
+                                 through view, not a one-shot linear flow).
     SettingsModal.tsx             Currently just "Clear scan cache".
   lib/
     api.ts                       Thin wrappers around `invoke`/`listen` for
@@ -113,12 +146,14 @@ src/                            React frontend
                                  GroupCard.tsx, and ImageGroupCard.tsx so all
                                  three agree on the rule.
     format.ts                    Byte/date/filename formatting helpers, plus
-                                 `commonDirPrefix`/`relativePath` — Duplix's
-                                 cache spans every folder ever scanned, so
-                                 there's no single "source folder" globally;
-                                 each similar-photo group's shared ancestor
-                                 folder is used as the "relative to" root
-                                 instead.
+                                 `commonDirPrefix`/`relativePath`. The Images
+                                 tab's similarity search is scoped to one
+                                 folder by default, but "include photos from
+                                 folders scanned before, too" can still pull
+                                 a group's members from different folders —
+                                 so each group's own shared ancestor folder,
+                                 not one single global root, is used as the
+                                 "relative to" root for display.
     thumbnailQueue.ts             Concurrency-limited queue in front of
                                  `get_image_thumbnail`, used by ImageThumb.tsx
                                  so many thumbnails mounting at once don't
@@ -135,6 +170,11 @@ src/                            React frontend
 ```
 
 ## How a scan works, end to end
+
+This describes the Files tab. Steps 1–3 (folder picker, `start_scan`, the
+walk itself) are the same backend machinery the Images tab's own "Choose a
+folder to scan…" flow drives — see "Near-duplicate image detection" below
+for what it does differently from step 4 onward.
 
 1. **Home** — user clicks "Choose a folder to scan…" → frontend calls the
    `pick_folder` command, which opens a native folder picker (Tauri dialog
@@ -155,11 +195,12 @@ src/                            React frontend
    upsert the row. After the walk, any cached row under the scanned folder
    whose path wasn't seen this time (deleted/moved file) is pruned.
 4. **Results** — once `scan-complete` fires, the frontend calls
-   `get_duplicate_groups`, which runs `GROUP BY content_hash HAVING
-   COUNT(*) > 1` **against the whole cache, not just the just-scanned
-   folder** (a deliberate choice — see "Cache scope" below), sorted by
-   reclaimable space (`size * (count - 1)`) descending. If there are no
-   groups, the frontend shows the Empty screen instead.
+   `get_duplicate_groups(root)`, which runs `GROUP BY content_hash HAVING
+   COUNT(*) > 1` scoped to files under `root` (see "Cache scope" below) —
+   a duplicate whose other copy lives in some other folder scanned in the
+   past isn't shown, only ones where every copy is inside the folder just
+   scanned. Sorted by reclaimable space (`size * (count - 1)`) descending.
+   If there are no groups, the frontend shows the Empty screen instead.
 5. **Review** — for each group, `defaultKeepIndex` (in `lib/groups.ts`)
    picks the file to keep: shortest path string, then oldest `mtime` as a
    tiebreaker. The user can click any file to override which one is kept,
@@ -175,30 +216,38 @@ src/                            React frontend
 
 ## Near-duplicate image detection (Images tab)
 
-The Images tab doesn't scan on its own — it works off images the Files tab
-has already indexed — but computing *and clustering* perceptual hashes is a
-deliberately separate pipeline from the Files-tab scan, triggered only when
-the Images tab is opened:
+The Images tab has its own "Choose a folder to scan…" flow (`HomeScreen` →
+`ScanningScreen` → results, driven by `imagesScreen` in `App.tsx`) that calls
+the exact same `start_scan`/`scan_folder` the Files tab uses — so a photo
+folder need never be scanned from the Files tab first. But computing *and
+clustering* perceptual hashes is a deliberately separate pipeline from that
+walk, triggered right after the Images tab's own scan finishes:
 
-1. **Perceptual hashing is never done during a Files-tab scan.** Decoding
+1. **Perceptual hashing is never done during the walk itself.** Decoding
    and resizing an image to hash it is roughly 90x slower than the BLAKE3
-   streaming hash a regular scan does (measured: ~1.6ms vs ~135ms on a 12MP
-   photo). Folding it into `scan_folder` made every scan of a photo-heavy
-   folder feel dramatically slower — including a one-time full re-decode of
-   every already-cached photo the first time you scanned after this feature
-   shipped. Instead, `scan_folder` only ever leaves `phash` as `NULL` (for a
-   new file) or resets it to `NULL` (if a file's `content_hash` changed —
-   see the comment above the upsert in `scanner.rs`).
-2. **Opening the Images tab** calls `start_image_indexing`, which finds every
-   `image`-type row with `phash IS NULL`, computes it on a background thread
-   spread across all CPU cores (`rayon`), and reports progress via
-   `image-index-progress`/`image-index-complete` events so the UI shows a
-   real progress bar instead of appearing to hang. This is normally a
-   one-time cost per photo — indexing 10,000 photos will take a while and
-   will use every core doing it (which can make a laptop feel warm, or even
-   throttle its clocks a little on sustained runs — that's the OS protecting
-   the CPU, not a bug), but a photo already indexed stays indexed until its
-   content changes.
+   streaming hash `scan_folder` does (measured: ~1.6ms vs ~135ms on a 12MP
+   photo). Folding it into `scan_folder` would make every scan of a
+   photo-heavy folder feel dramatically slower — including a one-time full
+   re-decode of every already-cached photo the first time you scanned after
+   this feature shipped. Instead, `scan_folder` only ever leaves `phash` as
+   `NULL` (for a new file) or resets it to `NULL` (if a file's
+   `content_hash` changed — see the comment above the upsert in
+   `scanner.rs`).
+2. **Once the Images tab's own scan completes**, the frontend calls
+   `start_image_indexing`, which finds every `image`-type row with `phash IS
+   NULL` **across the whole cache, not just the folder just scanned** —
+   computes it on a background thread spread across all CPU cores (`rayon`),
+   and reports progress via `image-index-progress`/`image-index-complete`
+   events so the UI shows a real progress bar instead of appearing to hang.
+   Indexing every pending photo regardless of folder (rather than scoping it
+   like the query in step 4 below) is what lets "include photos from folders
+   scanned before, too" show results immediately instead of needing a fresh
+   indexing pass the first time it's checked. This is normally a one-time
+   cost per photo — indexing 10,000 photos will take a while and will use
+   every core doing it (which can make a laptop feel warm, or even throttle
+   its clocks a little on sustained runs — that's the OS protecting the CPU,
+   not a bug), but a photo already indexed stays indexed until its content
+   changes.
 3. **The hash itself is a DCT-based perceptual hash (pHash)**, computed by
    `scanner::compute_phash`: shrink to 32×32 grayscale, run a 2D DCT, keep
    the top-left 8×8 block of low-frequency coefficients (dropping the single
@@ -215,9 +264,20 @@ the Images tab is opened:
    `db::open` will reset every cached `phash` to `NULL` so the next indexing
    pass recomputes with the new algorithm instead of silently comparing
    hashes that mean different things.
-4. **Clustering is two phases, not plain single-linkage.** Opening the
-   Images tab (or dragging the sensitivity slider) calls
-   `get_similar_image_groups(max_distance)`, which first finds *candidate*
+4. **Results are scoped to the scanned folder, unless opted out.** Finishing
+   the indexing pass above (or dragging the sensitivity slider, or toggling
+   "include photos from folders scanned before, too") calls
+   `get_similar_image_groups(max_distance, root)`. With `root` set (the
+   default — the folder just scanned), candidate images are filtered to that
+   folder's path prefix before clustering even starts, so a similar photo
+   living in some other folder scanned in the past doesn't show up mixed in.
+   Checking the "include other folders" box passes `root: null` instead,
+   searching every indexed image in the cache — the original, unscoped
+   behavior. Either way `indexed_count` in the result (used for the
+   "no photos found" vs. "no photos indexed yet" copy) reflects the same
+   scope as the query, not the whole cache.
+5. **Clustering is two phases, not plain single-linkage.** Within whatever
+   scope step 4 selected, this first finds *candidate*
    connected components via union-find (any two
    images within `max_distance` bits join the same component) — but taken
    alone, that lets similarity chain transitively (A~B and B~C would pull A
@@ -229,7 +289,7 @@ the Images tab is opened:
    cheap and good enough at the sizes these components come in), so "N
    similar photos" always means all N are mutually similar. The slider
    (0–16 in the UI) controls `max_distance`.
-5. **Previews are never pre-generated or cached on disk** — `ImageThumb`
+6. **Previews are never pre-generated or cached on disk** — `ImageThumb`
    calls `get_image_thumbnail(path, max_size)` per image, which decodes the
    file, resizes to at most `max_size` on its longest side, and returns a
    JPEG data URI (quality 88), so the frontend never needs raw filesystem
@@ -248,7 +308,7 @@ the Images tab is opened:
    preview request goes through `lib/thumbnailQueue.ts`, which caps how many
    decodes run at once (4) instead of firing dozens of concurrent IPC calls
    that saturate every core simultaneously.
-6. **Comparing photos**: clicking a group row opens `ImageCompareModal` — the
+7. **Comparing photos**: clicking a group row opens `ImageCompareModal` — the
    *only* view of a group's photos (an earlier version also had a small
    inline square-cropped grid for picking which copy to keep, duplicating
    the same job at a worse size; it's gone). The modal is an adaptive grid
@@ -262,12 +322,14 @@ the Images tab is opened:
    "Keep shortest path" replace the whole kept set with a single index (the
    common case, one click); "Keep all in this set" toggles between
    everything and nothing kept.
-7. **Paths are shown relative to each group's common folder, not
+8. **Paths are shown relative to each group's common folder, not
    absolute** — `format.ts::commonDirPrefix` finds the deepest folder shared
-   by every photo in one group (there's no single global "source folder"
-   to be relative to, since the cache spans every folder ever scanned), and
-   `relativePath` strips it for display.
-8. **Trashing** reuses the exact same `trash_files` command as the Files
+   by every photo in one group (usually just the scanned folder itself, but
+   "include photos from folders scanned before, too" can pull a group's
+   members from different folders, so there's no single global "source
+   folder" to always be relative to), and `relativePath` strips it for
+   display.
+9. **Trashing** reuses the exact same `trash_files` command as the Files
    tab — an image group's "kept" file defaults to `defaultKeepIndex` (same
    shortest-path/oldest-mtime rule), same as exact-duplicate groups. There
    are two ways to trigger it: the header's "Move to Trash…" commits every
@@ -311,13 +373,20 @@ doesn't re-hash files that haven't changed (`path` + `size` + `mtime` match
 (e.g. if the user is paranoid about stale hashes or just wants to reclaim
 the DB file's disk space via `VACUUM`).
 
-**Cache scope is global, by design.** Rows from every folder ever scanned
-stay in the cache, and `get_duplicate_groups` queries across all of them —
-so scanning `Downloads` today can surface a duplicate against `Pictures`
-scanned last week. Re-scanning a folder only refreshes/prunes rows under
-that folder's prefix; it never touches rows from other folders. This was an
-explicit decision (see git history / conversation log) over the alternative
-of scoping duplicates to only the most-recently-scanned folder.
+**Cache storage is global; queries are scoped to one folder by default.**
+Rows from every folder ever scanned stay in the cache — re-scanning a folder
+only refreshes/prunes rows under that folder's prefix, it never touches rows
+from other folders — but `get_duplicate_groups(root)` and
+`get_similar_image_groups(max_distance, root)` both filter to `root`'s path
+prefix before matching anything, using a shared `scanner::root_prefix`
+helper. So scanning `Downloads` today no longer surfaces a duplicate against
+`Pictures` scanned last week on the Files tab; on the Images tab, the same is
+true unless "include photos from folders scanned before, too" is checked,
+which passes `root: null` to search the whole cache instead — the original,
+unscoped behavior this replaced. Keeping storage global while scoping only
+the query is what makes that checkbox a cheap toggle rather than a re-scan:
+every folder's hashes are already sitting in the cache, ready to be searched
+either way.
 
 ## Frontend state shape
 
@@ -330,6 +399,18 @@ state worth knowing about:
 - `screen: 'home' | 'scanning' | 'results' | 'empty' | 'error' | 'done'` —
   drives which Files-tab screen renders. There's no router; it's just a big
   conditional in the JSX.
+- `imagesScreen: 'home' | 'scanning' | 'results' | 'error'` — the Images
+  tab's own, independent screen state machine, same shape in spirit as
+  `screen` but with no `'empty'`/`'done'`: `ImagesScreen` itself renders the
+  "no photos" and "nothing similar" cases inline (it's a persistent,
+  incrementally-worked-through view, not a one-shot linear flow like the
+  Files tab), and trashing never leaves `'results'`.
+- `scanInProgress` — shared across both tabs. `start_scan`/`cancel_scan` and
+  the `scan-progress`/`scan-complete` events are one set of backend
+  primitives with no concept of "which tab asked for this," so both tabs'
+  Home screens disable their "Choose a folder…" button while this is `true`
+  to prevent a scan started from one tab overlapping with one started from
+  the other after a tab switch.
 - `groupUi: Record<content_hash, { keepIndex, skipped, open }>` (Files tab)
   — per-group UI overrides, keyed by `content_hash` so they survive group
   list re-renders. `keepIndex: null` means "use the computed default"
@@ -350,9 +431,12 @@ state worth knowing about:
   out of sync with each other. The cluster `id` is a BLAKE3 hash of its
   sorted member paths (computed in `get_similar_image_groups`), so it stays
   stable across re-clustering as long as the same files end up together.
-- `imagesLoaded` — sticky "does the Images tab need to refetch" flag. It's
-  cleared to `false` whenever a Files-tab scan completes, so the next time
-  the user opens the Images tab it picks up newly-indexed photos.
+- `imagesRootPath` / `includeOtherFolders` — the folder the Images tab most
+  recently scanned, and whether its "include photos from folders scanned
+  before, too" checkbox is on. Both feed `getSimilarImageGroups`'s `root`
+  argument (`includeOtherFolders ? null : imagesRootPath`) every time groups
+  are (re)loaded — after a scan, after the threshold slider settles, after
+  toggling the checkbox, and after any commit.
 
 ## Tauri commands & events reference
 
@@ -361,10 +445,10 @@ state worth knowing about:
 | `pick_folder`                   | —                | `string \| null`                  |
 | `start_scan`                    | `root: string`   | `void` (throws if path invalid)   |
 | `cancel_scan`                   | —                | `void`                            |
-| `get_duplicate_groups`          | —                | `DuplicateGroup[]`                |
+| `get_duplicate_groups`          | `root: string`   | `DuplicateGroup[]`                |
 | `trash_files`                   | `paths: string[]`| `{ trashed, failed }`             |
 | `clear_cache`                   | —                | `number` (rows deleted)           |
-| `get_similar_image_groups`      | `maxDistance: number` | `{ groups: SimilarImageGroup[], indexed_count }` |
+| `get_similar_image_groups`      | `maxDistance: number, root: string \| null` | `{ groups: SimilarImageGroup[], indexed_count }` |
 | `start_image_indexing`          | —                | `void` (progress via events)      |
 | `get_image_thumbnail`           | `path: string, maxSize: number` | `string` (JPEG data URI) |
 
@@ -541,3 +625,21 @@ cd src-tauri && cargo check   # type-check the Rust side
   floor made a *genuine* zero (nothing reclaimed, e.g. every file in a
   commit failed to trash) *also* read as "1 KB", which is exactly backwards
   for that case. `bytes <= 0` is special-cased ahead of the floor now.
+- **Duplicate/similarity queries scoped to one folder, and the Images tab
+  given its own scan flow** — the original design (both tabs querying the
+  whole cache regardless of what was just scanned, and the Images tab only
+  ever working off whatever the Files tab happened to have scanned) meant
+  scanning one folder could surface "duplicates" against an unrelated folder
+  scanned weeks earlier, which real usage showed was confusing rather than
+  useful. `get_duplicate_groups` and `get_similar_image_groups` now take a
+  `root` (the latter optionally `null`) and filter to that folder's path
+  prefix via `scanner::root_prefix`, and the Images tab drives its own
+  `start_scan` instead of depending on the Files tab having scanned first.
+  The cache itself stays global (see "SQLite cache" above) — only what a
+  given query is allowed to match against changed — which is also why
+  "include photos from folders scanned before, too" can be a plain toggle
+  instead of needing a re-scan. Since both tabs now independently trigger
+  the same `start_scan`/`cancel_scan` commands and `scan-progress`/
+  `scan-complete` events, `scanInProgress` in `App.tsx` disables both tabs'
+  "Choose a folder…" buttons while either scan is running, so a scan from
+  one tab can't overlap with one started from the other after a tab switch.

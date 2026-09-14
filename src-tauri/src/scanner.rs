@@ -130,6 +130,14 @@ pub fn compute_phash(path: &Path) -> Option<u64> {
     Some(hash)
 }
 
+/// The prefix a file's path must start with (or equal exactly) to be
+/// considered "under" `root`. Shared between the scan's own prune step and
+/// the duplicate/similarity queries in `commands.rs`, which scope their
+/// results to one folder the same way.
+pub fn root_prefix(root: &str) -> String {
+    format!("{}{}", root.trim_end_matches(MAIN_SEPARATOR), MAIN_SEPARATOR)
+}
+
 fn now_unix() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -148,7 +156,7 @@ pub fn scan_folder(
     mut on_progress: impl FnMut(u64, &str),
 ) -> ScanComplete {
     let root_path = Path::new(root);
-    let root_prefix = format!("{}{}", root.trim_end_matches(MAIN_SEPARATOR), MAIN_SEPARATOR);
+    let prefix = root_prefix(root);
 
     let mut scanned: u64 = 0;
     let mut skipped_dirs: u64 = 0;
@@ -268,7 +276,7 @@ pub fn scan_folder(
                 .map(|r| r.filter_map(|x| x.ok()).collect::<Vec<_>>())
                 .unwrap_or_default();
             rows.into_iter()
-                .filter(|p| (p == root || p.starts_with(&root_prefix)) && !seen_paths.contains(p))
+                .filter(|p| (p == root || p.starts_with(&prefix)) && !seen_paths.contains(p))
                 .collect()
         };
         for path in stale {

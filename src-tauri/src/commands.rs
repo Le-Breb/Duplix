@@ -58,22 +58,32 @@ pub fn cancel_scan(state: State<AppState>) {
     state.cancel_flag.store(true, Ordering::Relaxed);
 }
 
+/// Exact-duplicate groups, scoped to files under `root` — a duplicate whose
+/// other copy lives outside `root` (in some other folder scanned in the
+/// past) isn't shown at all, not even the copy that is under `root`. Cache
+/// rows from other folders stick around (see "Cache scope" in the README)
+/// so re-scanning doesn't lose their hashes, but the Files tab only ever
+/// wants to talk about the one folder the user just pointed it at.
 #[tauri::command]
-pub fn get_duplicate_groups(state: State<AppState>) -> Result<Vec<DuplicateGroup>, String> {
+pub fn get_duplicate_groups(state: State<AppState>, root: String) -> Result<Vec<DuplicateGroup>, String> {
+    let prefix = scanner::root_prefix(&root);
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
         .prepare(
             "SELECT content_hash, file_type, size, path, mtime
              FROM files
-             WHERE content_hash IN (
-                 SELECT content_hash FROM files GROUP BY content_hash HAVING COUNT(*) > 1
+             WHERE (path = ?1 OR substr(path, 1, length(?2)) = ?2)
+               AND content_hash IN (
+                 SELECT content_hash FROM files
+                 WHERE (path = ?1 OR substr(path, 1, length(?2)) = ?2)
+                 GROUP BY content_hash HAVING COUNT(*) > 1
              )
              ORDER BY content_hash",
         )
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
-        .query_map([], |row| {
+        .query_map(params![root, prefix], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
@@ -214,27 +224,56 @@ fn split_into_cliques(idxs: &[usize], dist: impl Fn(usize, usize) -> u32, thresh
 /// other, so what the user sees as "N similar photos" always means all N are
 /// mutually similar, not just transitively linked through some chain of
 /// intermediate photos they never see.
+/// `root: None` (the "include photos from other folders too" option)
+/// searches every indexed image in the cache, same as before this command
+/// took a root at all. `root: Some(...)` — the default — restricts
+/// candidates to images under that one folder, so photos the user happened
+/// to have scanned in some unrelated folder in the past don't show up
+/// mixed in with the folder they're actually reviewing right now.
 #[tauri::command]
 pub fn get_similar_image_groups(
     state: State<AppState>,
     max_distance: u32,
+    root: Option<String>,
 ) -> Result<SimilarImageGroupsResult, String> {
     let rows: Vec<(String, i64, i64, i64)> = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        let mut stmt = db
-            .prepare(
-                "SELECT path, size, mtime, phash FROM files
-                 WHERE file_type = 'image' AND phash IS NOT NULL",
-            )
-            .map_err(|e| e.to_string())?;
-        let mapped = stmt
-            .query_map([], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            })
-            .map_err(|e| e.to_string())?
-            .filter_map(Result::ok)
-            .collect();
-        mapped
+        match &root {
+            Some(root) => {
+                let prefix = scanner::root_prefix(root);
+                let mut stmt = db
+                    .prepare(
+                        "SELECT path, size, mtime, phash FROM files
+                         WHERE file_type = 'image' AND phash IS NOT NULL
+                           AND (path = ?1 OR substr(path, 1, length(?2)) = ?2)",
+                    )
+                    .map_err(|e| e.to_string())?;
+                let mapped = stmt
+                    .query_map(params![root, prefix], |row| {
+                        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                    })
+                    .map_err(|e| e.to_string())?
+                    .filter_map(Result::ok)
+                    .collect();
+                mapped
+            }
+            None => {
+                let mut stmt = db
+                    .prepare(
+                        "SELECT path, size, mtime, phash FROM files
+                         WHERE file_type = 'image' AND phash IS NOT NULL",
+                    )
+                    .map_err(|e| e.to_string())?;
+                let mapped = stmt
+                    .query_map([], |row| {
+                        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                    })
+                    .map_err(|e| e.to_string())?
+                    .filter_map(Result::ok)
+                    .collect();
+                mapped
+            }
+        }
     };
 
     let n = rows.len();

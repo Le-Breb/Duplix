@@ -1,9 +1,16 @@
 interface HomeScreenProps {
   onChooseFolder: () => void
   busy: boolean
+  title?: string
+  description?: string
 }
 
-export function HomeScreen({ onChooseFolder, busy }: HomeScreenProps) {
+export function HomeScreen({
+  onChooseFolder,
+  busy,
+  title = 'Find duplicate files',
+  description = "Pick a folder and we'll compare every file byte for byte. Nothing moves until you say so.",
+}: HomeScreenProps) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-0 p-10">
       <div
@@ -15,13 +22,13 @@ export function HomeScreen({ onChooseFolder, busy }: HomeScreenProps) {
         }}
       />
       <div className="text-[27px] tracking-[-0.015em]" style={{ color: 'var(--ink)' }}>
-        Find duplicate files
+        {title}
       </div>
       <div
         className="mt-[10px] max-w-[430px] text-center text-sm leading-[1.55]"
         style={{ color: 'var(--ink2)' }}
       >
-        Pick a folder and we'll compare every file byte for byte. Nothing moves until you say so.
+        {description}
       </div>
       <button
         onClick={onChooseFolder}

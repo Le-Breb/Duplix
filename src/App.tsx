@@ -27,6 +27,13 @@ import {
 import { defaultKeepIndex, resolveKeptIndices, type GroupUiState, type ImageGroupUiState } from './lib/groups'
 
 type Screen = 'home' | 'scanning' | 'results' | 'empty' | 'error' | 'done'
+// Mirrors `Screen` above — the Images tab is its own independent
+// pick-a-folder-and-scan flow, not something derived from the Files tab.
+// There's no 'empty'/'done' state here: ImagesScreen itself renders the
+// "no photos" and "nothing similar" cases inline (it's a persistent,
+// incrementally-worked-through view, not a one-shot linear flow), and
+// trashing never leaves 'results'.
+type ImagesTabScreen = 'home' | 'scanning' | 'results' | 'error'
 type Tab = 'files' | 'images'
 
 function loadTheme(): 'light' | 'dark' {
@@ -59,13 +66,26 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('')
   const [doneResult, setDoneResult] = useState({ trashedCount: 0, reclaimedBytes: 0, failed: [] as [string, string][] })
 
+  // Only one scan (Files tab or Images tab — they share the same backend
+  // scan/cancel commands and events) can meaningfully run at a time. Both
+  // tabs' "choose a folder" entry points check this before starting a new
+  // one, so a scan kicked off from one tab can't overlap with one kicked off
+  // from the other while the user switches tabs mid-scan.
+  const [scanInProgress, setScanInProgress] = useState(false)
+
+  const [imagesScreen, setImagesScreen] = useState<ImagesTabScreen>('home')
+  const [imagesBusy, setImagesBusy] = useState(false)
+  const [imagesRootPath, setImagesRootPath] = useState('')
+  const [imagesScanned, setImagesScanned] = useState(0)
+  const [imagesCurrentPath, setImagesCurrentPath] = useState('')
+  const [imagesScanError, setImagesScanError] = useState('')
+  const [includeOtherFolders, setIncludeOtherFolders] = useState(false)
   const [imageThreshold, setImageThreshold] = useState(6)
   const [imageGroups, setImageGroups] = useState<SimilarImageGroup[]>([])
   const [imageGroupUi, setImageGroupUi] = useState<Record<string, ImageGroupUiState>>({})
   const [imagesLoading, setImagesLoading] = useState(false)
   const [imagesError, setImagesError] = useState('')
   const [imagesIndexedCount, setImagesIndexedCount] = useState(0)
-  const [imagesLoaded, setImagesLoaded] = useState(false)
   const [indexProgress, setIndexProgress] = useState<ImageIndexProgress | null>(null)
   const [showImageConfirm, setShowImageConfirm] = useState(false)
   const [imageCommitting, setImageCommitting] = useState(false)
@@ -85,18 +105,12 @@ export default function App() {
     }
   }, [theme])
 
-  useEffect(() => {
-    if (activeTab === 'images' && !imagesLoaded) {
-      ensureImagesIndexed()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, imagesLoaded])
-
   async function runScan(root: string) {
     setRootPath(root)
     setScanned(0)
     setCurrentPath('')
     setScreen('scanning')
+    setScanInProgress(true)
 
     const unlistenProgress = await onScanProgress((p) => {
       setScanned(p.scanned)
@@ -105,6 +119,7 @@ export default function App() {
     const unlistenComplete = await onScanComplete(async (c) => {
       unlistenProgress()
       unlistenComplete()
+      setScanInProgress(false)
 
       if (c.canceled) {
         setScreen('home')
@@ -112,9 +127,8 @@ export default function App() {
       }
 
       setScanned(c.scanned)
-      setImagesLoaded(false) // new files may have been indexed; refresh Images tab next time it's opened
       try {
-        const found = await getDuplicateGroups()
+        const found = await getDuplicateGroups(root)
         if (found.length === 0) {
           setScreen('empty')
           return
@@ -133,6 +147,7 @@ export default function App() {
     } catch (e) {
       unlistenProgress()
       unlistenComplete()
+      setScanInProgress(false)
       setErrorMessage(String(e))
       setScreen('error')
     }
@@ -166,14 +181,13 @@ export default function App() {
     }))
   }
 
-  async function loadImageGroups(threshold: number) {
+  async function loadImageGroups(threshold: number, root: string, includeOther: boolean) {
     setImagesLoading(true)
     setImagesError('')
     try {
-      const res = await getSimilarImageGroups(threshold)
+      const res = await getSimilarImageGroups(threshold, includeOther ? null : root)
       setImageGroups(res.groups)
       setImagesIndexedCount(res.indexed_count)
-      setImagesLoaded(true)
     } catch (e) {
       setImagesError(String(e))
     } finally {
@@ -181,7 +195,11 @@ export default function App() {
     }
   }
 
-  async function ensureImagesIndexed() {
+  // Computes perceptual hashes for any image that still needs one (new
+  // photos from the folder just scanned, plus anything left over from a
+  // previous session) and then loads similarity groups. Separate from the
+  // file scan itself — see README "Near-duplicate image detection" for why.
+  async function ensureImagesIndexed(root: string) {
     setImagesLoading(true)
     setImagesError('')
     setIndexProgress(null)
@@ -191,7 +209,7 @@ export default function App() {
       unlistenProgress()
       unlistenComplete()
       setIndexProgress(null)
-      await loadImageGroups(imageThreshold)
+      await loadImageGroups(imageThreshold, root, includeOtherFolders)
     })
 
     try {
@@ -204,6 +222,68 @@ export default function App() {
     }
   }
 
+  async function runImagesScan(root: string) {
+    setImagesRootPath(root)
+    setImagesScanned(0)
+    setImagesCurrentPath('')
+    setImagesScreen('scanning')
+    setScanInProgress(true)
+
+    const unlistenProgress = await onScanProgress((p) => {
+      setImagesScanned(p.scanned)
+      setImagesCurrentPath(p.current_path)
+    })
+    const unlistenComplete = await onScanComplete(async (c) => {
+      unlistenProgress()
+      unlistenComplete()
+      setScanInProgress(false)
+
+      if (c.canceled) {
+        setImagesScreen('home')
+        return
+      }
+
+      setImagesScanned(c.scanned)
+      setImagesScreen('results')
+      setImageGroups([])
+      setImageGroupUi({})
+      await ensureImagesIndexed(root)
+    })
+
+    try {
+      await startScan(root)
+    } catch (e) {
+      unlistenProgress()
+      unlistenComplete()
+      setScanInProgress(false)
+      setImagesScanError(String(e))
+      setImagesScreen('error')
+    }
+  }
+
+  async function handleChooseImagesFolder() {
+    setImagesBusy(true)
+    try {
+      const path = await pickFolder()
+      if (path) await runImagesScan(path)
+    } finally {
+      setImagesBusy(false)
+    }
+  }
+
+  async function handleCancelImagesScan() {
+    await cancelScan()
+  }
+
+  function goImagesHome() {
+    setImagesScreen('home')
+    setImageGroups([])
+    setImageGroupUi({})
+    setImagesIndexedCount(0)
+    setImageResult(null)
+    setImagesError('')
+  }
+
   // Sets (replaces, doesn't merge) which photos in one group are kept — the
   // only mutation the Images tab needs: "keep newest" / "keep shortest
   // path" / "select all" / "select none" / toggling one photo all reduce to
@@ -214,7 +294,12 @@ export default function App() {
 
   function handleChangeImageThreshold(value: number) {
     setImageThreshold(value)
-    loadImageGroups(value)
+    loadImageGroups(value, imagesRootPath, includeOtherFolders)
+  }
+
+  function handleToggleIncludeOtherFolders(value: boolean) {
+    setIncludeOtherFolders(value)
+    loadImageGroups(imageThreshold, imagesRootPath, value)
   }
 
   async function handleCommitImages() {
@@ -235,7 +320,7 @@ export default function App() {
       const reclaimedBytes = outcome.trashed.reduce((sum, p) => sum + (sizeByPath.get(p) ?? 0), 0)
       setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes, failed: outcome.failed })
       setShowImageConfirm(false)
-      await loadImageGroups(imageThreshold)
+      await loadImageGroups(imageThreshold, imagesRootPath, includeOtherFolders)
     } catch (e) {
       setImagesError(String(e))
     } finally {
@@ -258,7 +343,7 @@ export default function App() {
       const outcome = await trashFiles(toTrash)
       const reclaimedBytes = outcome.trashed.reduce((sum, p) => sum + (sizeByPath.get(p) ?? 0), 0)
       setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes, failed: outcome.failed })
-      await loadImageGroups(imageThreshold)
+      await loadImageGroups(imageThreshold, imagesRootPath, includeOtherFolders)
     } catch (e) {
       setImagesError(String(e))
     } finally {
@@ -308,7 +393,7 @@ export default function App() {
       <div className="relative flex min-w-0 flex-1 flex-col">
         {activeTab === 'files' && (
           <>
-            {screen === 'home' && <HomeScreen onChooseFolder={handleChooseFolder} busy={busy} />}
+            {screen === 'home' && <HomeScreen onChooseFolder={handleChooseFolder} busy={busy || scanInProgress} />}
 
             {screen === 'scanning' && (
               <ScanningScreen
@@ -359,26 +444,61 @@ export default function App() {
         )}
 
         {activeTab === 'images' && (
-          <ImagesScreen
-            groups={imageGroups}
-            groupUi={imageGroupUi}
-            loading={imagesLoading}
-            indexProgress={indexProgress}
-            error={imagesError}
-            hasIndexedImages={imagesIndexedCount > 0}
-            threshold={imageThreshold}
-            onChangeThreshold={handleChangeImageThreshold}
-            onSetKeptIndices={setImageKeptIndices}
-            showConfirm={showImageConfirm}
-            onOpenConfirm={() => setShowImageConfirm(true)}
-            onCloseConfirm={() => setShowImageConfirm(false)}
-            onCommit={handleCommitImages}
-            committing={imageCommitting}
-            onCommitGroup={handleCommitGroupNow}
-            committingGroupId={committingGroupId}
-            lastResult={imageResult}
-            onDismissResult={() => setImageResult(null)}
-          />
+          <>
+            {imagesScreen === 'home' && (
+              <HomeScreen
+                onChooseFolder={handleChooseImagesFolder}
+                busy={imagesBusy || scanInProgress}
+                title="Find similar photos"
+                description="Pick a folder and we'll group photos that look alike — resized, recompressed, or lightly edited copies included. Nothing moves until you say so."
+              />
+            )}
+
+            {imagesScreen === 'scanning' && (
+              <ScanningScreen
+                rootPath={imagesRootPath}
+                scanned={imagesScanned}
+                currentPath={imagesCurrentPath}
+                onCancel={handleCancelImagesScan}
+              />
+            )}
+
+            {imagesScreen === 'error' && (
+              <ErrorScreen
+                rootPath={imagesRootPath}
+                message={imagesScanError}
+                onGoHome={goImagesHome}
+                onRetry={() => runImagesScan(imagesRootPath)}
+              />
+            )}
+
+            {imagesScreen === 'results' && (
+              <ImagesScreen
+                rootPath={imagesRootPath}
+                onChangeFolder={goImagesHome}
+                groups={imageGroups}
+                groupUi={imageGroupUi}
+                loading={imagesLoading}
+                indexProgress={indexProgress}
+                error={imagesError}
+                hasIndexedImages={imagesIndexedCount > 0}
+                threshold={imageThreshold}
+                onChangeThreshold={handleChangeImageThreshold}
+                includeOtherFolders={includeOtherFolders}
+                onToggleIncludeOtherFolders={handleToggleIncludeOtherFolders}
+                onSetKeptIndices={setImageKeptIndices}
+                showConfirm={showImageConfirm}
+                onOpenConfirm={() => setShowImageConfirm(true)}
+                onCloseConfirm={() => setShowImageConfirm(false)}
+                onCommit={handleCommitImages}
+                committing={imageCommitting}
+                onCommitGroup={handleCommitGroupNow}
+                committingGroupId={committingGroupId}
+                lastResult={imageResult}
+                onDismissResult={() => setImageResult(null)}
+              />
+            )}
+          </>
         )}
 
         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}

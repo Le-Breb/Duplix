@@ -63,8 +63,8 @@ export function cancelScan(): Promise<void> {
   return invoke('cancel_scan')
 }
 
-export function getDuplicateGroups(): Promise<DuplicateGroup[]> {
-  return invoke('get_duplicate_groups')
+export function getDuplicateGroups(root: string): Promise<DuplicateGroup[]> {
+  return invoke('get_duplicate_groups', { root })
 }
 
 export function trashFiles(paths: string[]): Promise<TrashOutcome> {
@@ -75,8 +75,14 @@ export function clearCache(): Promise<number> {
   return invoke('clear_cache')
 }
 
-export function getSimilarImageGroups(maxDistance: number): Promise<SimilarImageGroupsResult> {
-  return invoke('get_similar_image_groups', { maxDistance })
+// `root: null` means "every folder ever scanned" (the "include photos from
+// other folders too" option) — omitted (undefined) it defaults to that same
+// unscoped search, so callers that do want scoping must pass a root.
+export function getSimilarImageGroups(
+  maxDistance: number,
+  root: string | null,
+): Promise<SimilarImageGroupsResult> {
+  return invoke('get_similar_image_groups', { maxDistance, root })
 }
 
 export function getImageThumbnail(path: string, maxSize: number): Promise<string> {

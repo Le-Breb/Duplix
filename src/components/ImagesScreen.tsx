@@ -7,6 +7,8 @@ import { ImageGroupCard } from './ImageGroupCard'
 import { ConfirmModal } from './ConfirmModal'
 
 interface ImagesScreenProps {
+  rootPath: string
+  onChangeFolder: () => void
   groups: SimilarImageGroup[]
   groupUi: Record<string, ImageGroupUiState>
   loading: boolean
@@ -15,6 +17,8 @@ interface ImagesScreenProps {
   hasIndexedImages: boolean
   threshold: number
   onChangeThreshold: (value: number) => void
+  includeOtherFolders: boolean
+  onToggleIncludeOtherFolders: (value: boolean) => void
   onSetKeptIndices: (id: string, keptIndices: Set<number>) => void
   showConfirm: boolean
   onOpenConfirm: () => void
@@ -36,6 +40,8 @@ interface ImagesScreenProps {
 const EMPTY_UI: ImageGroupUiState = { keptIndices: null }
 
 export function ImagesScreen({
+  rootPath,
+  onChangeFolder,
   groups,
   groupUi,
   loading,
@@ -44,6 +50,8 @@ export function ImagesScreen({
   hasIndexedImages,
   threshold,
   onChangeThreshold,
+  includeOtherFolders,
+  onToggleIncludeOtherFolders,
   onSetKeptIndices,
   showConfirm,
   onOpenConfirm,
@@ -117,8 +125,17 @@ export function ImagesScreen({
       >
         <div className="flex items-end gap-5">
           <div className="min-w-0 flex-1">
-            <div className="font-mono text-[11px] tracking-[0.04em]" style={{ color: 'var(--ink3)' }}>
-              ACROSS EVERY SCANNED FOLDER
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 truncate font-mono text-[11px] tracking-[0.04em]" style={{ color: 'var(--ink3)' }}>
+                {includeOtherFolders ? `${rootPath} + previously scanned folders` : rootPath}
+              </div>
+              <button
+                onClick={onChangeFolder}
+                className="flex-none text-[11px] underline"
+                style={{ color: 'var(--ink3)' }}
+              >
+                Change folder…
+              </button>
             </div>
             <div className="mt-[7px] text-xl tracking-[-0.01em]" style={{ color: 'var(--ink)' }}>
               {groups.length} sets of similar photos
@@ -165,6 +182,17 @@ export function ImagesScreen({
             LOOSE
           </div>
         </div>
+
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-[12.5px]" style={{ color: 'var(--ink2)' }}>
+          <input
+            type="checkbox"
+            checked={includeOtherFolders}
+            onChange={(e) => onToggleIncludeOtherFolders(e.target.checked)}
+            className="accent-[var(--accent)]"
+            style={{ accentColor: 'var(--accent)' }}
+          />
+          Include photos from folders scanned before, too
+        </label>
       </div>
 
       {lastResult && (
@@ -248,11 +276,12 @@ export function ImagesScreen({
         {!loading && !error && !hasIndexedImages && (
           <div className="mt-10 flex flex-col items-center text-center">
             <div className="text-[15px]" style={{ color: 'var(--ink)' }}>
-              No photos indexed yet
+              No photos found
             </div>
             <div className="mt-2 max-w-[380px] text-sm" style={{ color: 'var(--ink2)' }}>
-              Scan a folder from the Files tab first — Duplix compares photos across every folder
-              you've scanned.
+              {includeOtherFolders
+                ? "This folder (and every folder scanned before it) doesn't have any photos Duplix can decode."
+                : "This folder doesn't have any photos Duplix can decode. Check \"include photos from folders scanned before\" to widen the search, or choose a different folder."}
             </div>
           </div>
         )}
