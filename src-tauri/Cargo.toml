@@ -1,5 +1,5 @@
 [package]
-name = "app"
+name = "duplix"
 version = "1.0.0"
 description = "A cross-platform desktop app that finds byte-identical duplicate files and near-duplicate photos"
 authors = ["Mathieu Brebion"]

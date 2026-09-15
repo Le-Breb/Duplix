@@ -95,27 +95,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
-name = "app"
-version = "1.0.0"
-dependencies = [
- "base64 0.22.1",
- "blake3",
- "image",
- "log",
- "rayon",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-log",
- "tempfile",
- "trash",
- "walkdir",
-]
-
-[[package]]
 name = "arbitrary"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -942,6 +921,27 @@ name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
+
+[[package]]
+name = "duplix"
+version = "1.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "blake3",
+ "image",
+ "log",
+ "rayon",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-log",
+ "tempfile",
+ "trash",
+ "walkdir",
+]
 
 [[package]]
 name = "dyn-clone"
