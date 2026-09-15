@@ -89,9 +89,12 @@ export function ImageCompareModal({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#0a0c0f' }}>
-      <div className="flex flex-none flex-wrap items-center justify-between gap-2 px-5 py-3.5">
-        <div className="text-[13.5px]" style={{ color: '#f4f5f7' }}>
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'var(--bg)' }}>
+      <div
+        className="flex flex-none flex-wrap items-center justify-between gap-2 px-5 py-3.5"
+        style={{ borderBottom: '1px solid var(--line)', background: 'var(--panel)' }}
+      >
+        <div className="text-[13.5px]" style={{ color: 'var(--ink)' }}>
           {zoomedIndex === null ? (
             noneKept ? (
               t('compareModal.allWillBeTrashed', n)
@@ -102,7 +105,7 @@ export function ImageCompareModal({
             <button
               onClick={() => setZoomedIndex(null)}
               className="text-[13.5px]"
-              style={{ color: '#f4f5f7' }}
+              style={{ color: 'var(--ink)' }}
             >
               {t('compareModal.backToGrid')}
             </button>
@@ -112,20 +115,20 @@ export function ImageCompareModal({
         <div className="flex flex-wrap items-center gap-3">
           <div
             className="flex items-stretch overflow-hidden rounded-md"
-            style={{ border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(255,255,255,0.04)' }}
+            style={{ border: '1px solid var(--line)', background: 'var(--bg2)' }}
           >
             <button
               onClick={keepNewest}
-              className="whitespace-nowrap px-3 py-1.5 text-xs transition-colors hover:bg-white/10"
-              style={{ color: '#f4f5f7' }}
+              className="whitespace-nowrap px-3 py-1.5 text-xs transition-colors hover:brightness-[0.95]"
+              style={{ color: 'var(--ink)' }}
             >
               {t('groupCard.keepNewest')}
             </button>
-            <div style={{ width: 1, background: 'rgba(255,255,255,0.16)' }} />
+            <div style={{ width: 1, background: 'var(--line)' }} />
             <button
               onClick={toggleKeepAll}
-              className="whitespace-nowrap px-3 py-1.5 text-xs transition-colors hover:bg-white/10"
-              style={{ color: '#f4f5f7' }}
+              className="whitespace-nowrap px-3 py-1.5 text-xs transition-colors hover:brightness-[0.95]"
+              style={{ color: 'var(--ink)' }}
             >
               {allKept ? t('compareModal.keepNone') : t('compareModal.keepAll')}
             </button>
@@ -142,8 +145,8 @@ export function ImageCompareModal({
 
           <button
             onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-xs transition-colors hover:bg-white/10"
-            style={{ color: '#f4f5f7', border: '1px solid rgba(255,255,255,0.16)' }}
+            className="rounded-md px-3 py-1.5 text-xs transition-colors hover:brightness-[0.95]"
+            style={{ color: 'var(--ink)', border: '1px solid var(--line)' }}
           >
             {t('compareModal.close')}
           </button>
@@ -161,7 +164,7 @@ export function ImageCompareModal({
               <div
                 key={f.path}
                 className="relative flex min-h-[160px] flex-col overflow-hidden rounded-lg"
-                style={{ background: 'rgba(255,255,255,0.04)' }}
+                style={{ border: '1px solid var(--line)', background: 'var(--bg2)' }}
               >
                 <button
                   onClick={() => setZoomedIndex(i)}
@@ -172,13 +175,13 @@ export function ImageCompareModal({
                 </button>
                 <div
                   className="flex items-center gap-2 px-3 py-2"
-                  style={{ background: 'rgba(0,0,0,0.35)' }}
+                  style={{ borderTop: '1px solid var(--line)', background: 'var(--panel)' }}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[11.5px]" style={{ color: '#f4f5f7' }}>
+                    <div className="truncate text-[11.5px]" style={{ color: 'var(--ink)' }}>
                       {relativePath(f.path, commonDir)}
                     </div>
-                    <div className="truncate text-[10.5px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                    <div className="truncate text-[10.5px]" style={{ color: 'var(--ink3)' }}>
                       {formatDate(f.mtime, localeFor(language))} · {formatBytes(f.size)}
                     </div>
                   </div>
@@ -188,7 +191,7 @@ export function ImageCompareModal({
                     style={
                       isKept
                         ? { background: 'var(--tint)', color: 'var(--accent)' }
-                        : { border: '1px solid rgba(255,255,255,0.3)', color: '#f4f5f7' }
+                        : { border: '1px solid var(--line2)', color: 'var(--ink)' }
                     }
                   >
                     {isKept ? t('compareModal.keepChecked') : t('groupCard.toTrash')}
@@ -205,7 +208,7 @@ export function ImageCompareModal({
               <button
                 onClick={() => setZoomedIndex((i) => (i === null ? i : (i - 1 + n) % n))}
                 className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-lg"
-                style={{ background: 'rgba(255,255,255,0.1)', color: '#f4f5f7' }}
+                style={{ border: '1px solid var(--line)', background: 'var(--bg2)', color: 'var(--ink)' }}
                 aria-label={t('compareModal.previousPhoto')}
               >
                 ‹
@@ -213,7 +216,7 @@ export function ImageCompareModal({
               <button
                 onClick={() => setZoomedIndex((i) => (i === null ? i : (i + 1) % n))}
                 className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-lg"
-                style={{ background: 'rgba(255,255,255,0.1)', color: '#f4f5f7' }}
+                style={{ border: '1px solid var(--line)', background: 'var(--bg2)', color: 'var(--ink)' }}
                 aria-label={t('compareModal.nextPhoto')}
               >
                 ›
@@ -227,10 +230,10 @@ export function ImageCompareModal({
             </div>
             <div className="flex flex-none items-center gap-3 text-center">
               <div>
-                <div className="text-[12.5px]" style={{ color: '#f4f5f7' }}>
+                <div className="text-[12.5px]" style={{ color: 'var(--ink)' }}>
                   {relativePath(group.files[zoomedIndex].path, commonDir)}
                 </div>
-                <div className="mt-0.5 text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                <div className="mt-0.5 text-[11px]" style={{ color: 'var(--ink3)' }}>
                   {formatDate(group.files[zoomedIndex].mtime, localeFor(language))} ·{' '}
                   {formatBytes(group.files[zoomedIndex].size)} · {zoomedIndex + 1} / {n}
                 </div>
@@ -241,7 +244,7 @@ export function ImageCompareModal({
                 style={
                   kept.has(zoomedIndex)
                     ? { background: 'var(--tint)', color: 'var(--accent)' }
-                    : { border: '1px solid rgba(255,255,255,0.3)', color: '#f4f5f7' }
+                    : { border: '1px solid var(--line2)', color: 'var(--ink)' }
                 }
               >
                 {kept.has(zoomedIndex) ? t('compareModal.keepChecked') : t('groupCard.toTrash')}
