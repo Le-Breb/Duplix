@@ -1,6 +1,6 @@
 [package]
 name = "duplix"
-version = "1.0.0"
+version = "1.0.1"
 description = "A cross-platform desktop app that finds byte-identical duplicate files and near-duplicate photos"
 authors = ["Mathieu Brebion"]
 license = "GPL-3.0"
