@@ -9,7 +9,7 @@ import { ImageThumb } from './ImageThumb'
 interface ImageCompareModalProps {
   group: SimilarImageGroup
   ui: ImageGroupUiState
-  commonDir: string
+  rootPath: string
   onSetKeptIndices: (keptIndices: Set<number>) => void
   onCommitNow: () => void
   committing: boolean
@@ -36,7 +36,7 @@ function columnsFor(n: number): number {
 export function ImageCompareModal({
   group,
   ui,
-  commonDir,
+  rootPath,
   onSetKeptIndices,
   onCommitNow,
   committing,
@@ -178,8 +178,8 @@ export function ImageCompareModal({
                   style={{ borderTop: '1px solid var(--line)', background: 'var(--panel)' }}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[11.5px]" style={{ color: 'var(--ink)' }}>
-                      {relativePath(f.path, commonDir)}
+                    <div className="truncate text-[11.5px]" style={{ color: 'var(--ink)' }} title={f.path}>
+                      {relativePath(f.path, rootPath)}
                     </div>
                     <div className="truncate text-[10.5px]" style={{ color: 'var(--ink3)' }}>
                       {formatDate(f.mtime, localeFor(language))} · {formatBytes(f.size)}
@@ -231,7 +231,7 @@ export function ImageCompareModal({
             <div className="flex flex-none items-center gap-3 text-center">
               <div>
                 <div className="text-[12.5px]" style={{ color: 'var(--ink)' }}>
-                  {relativePath(group.files[zoomedIndex].path, commonDir)}
+                  {relativePath(group.files[zoomedIndex].path, rootPath)}
                 </div>
                 <div className="mt-0.5 text-[11px]" style={{ color: 'var(--ink3)' }}>
                   {formatDate(group.files[zoomedIndex].mtime, localeFor(language))} ·{' '}

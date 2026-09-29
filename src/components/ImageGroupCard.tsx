@@ -1,6 +1,6 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useState } from 'react'
 import type { SimilarImageGroup } from '../lib/api'
-import { commonDirPrefix, fileName, formatBytes } from '../lib/format'
+import { formatBytes, relativePath } from '../lib/format'
 import { resolveKeptIndices, type ImageGroupUiState } from '../lib/groups'
 import { useTranslation } from '../lib/i18n'
 import { ImageThumb } from './ImageThumb'
@@ -9,6 +9,8 @@ import { ImageCompareModal } from './ImageCompareModal'
 interface ImageGroupCardProps {
   group: SimilarImageGroup
   ui: ImageGroupUiState
+  /** The folder the user chose to scan; paths are shown relative to it. */
+  rootPath: string
   // Raw, id-aware handler rather than an already-bound-to-this-group
   // callback: ImagesScreen passes this straight through unwrapped, which is
   // what lets it stay referentially stable across its scroll-driven
@@ -45,6 +47,7 @@ function similarityLabel(maxDistance: number, t: ReturnType<typeof useTranslatio
 export const ImageGroupCard = memo(function ImageGroupCard({
   group,
   ui,
+  rootPath,
   onSetKeptIndices,
   onCommitGroup,
   committing,
@@ -56,7 +59,6 @@ export const ImageGroupCard = memo(function ImageGroupCard({
   const noneKept = kept.size === 0
   const previewFile = group.files[noneKept ? 0 : [...kept][0]]
   const reclaim = group.files.reduce((sum, f, i) => (kept.has(i) ? sum : sum + f.size), 0)
-  const commonDir = useMemo(() => commonDirPrefix(group.files.map((f) => f.path)), [group.files])
 
   return (
     <div
@@ -75,8 +77,8 @@ export const ImageGroupCard = memo(function ImageGroupCard({
           <ImageThumb key={previewFile.path} path={previewFile.path} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm" style={{ color: 'var(--ink)' }}>
-            {fileName(previewFile.path)}
+          <div className="truncate text-sm" style={{ color: 'var(--ink)' }} title={previewFile.path}>
+            {relativePath(previewFile.path, rootPath)}
           </div>
           <div className="mt-1 truncate text-[12.5px]" style={{ color: 'var(--ink2)' }}>
             {t('imageGroupCard.similarPhotos', group.files.length)} · {similarityLabel(group.max_distance, t)}
@@ -116,7 +118,7 @@ export const ImageGroupCard = memo(function ImageGroupCard({
         <ImageCompareModal
           group={group}
           ui={ui}
-          commonDir={commonDir}
+          rootPath={rootPath}
           onSetKeptIndices={(indices) => onSetKeptIndices(group.id, indices)}
           onCommitNow={() => onCommitGroup(group)}
           committing={committing}

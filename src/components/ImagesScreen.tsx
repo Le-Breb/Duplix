@@ -309,6 +309,7 @@ export function ImagesScreen({
                   <ImageGroupCard
                     group={g}
                     ui={groupUi[g.id] ?? EMPTY_UI}
+                    rootPath={rootPath}
                     onSetKeptIndices={onSetKeptIndices}
                     onCommitGroup={onCommitGroup}
                     committing={committingGroupId === g.id}
