@@ -340,6 +340,9 @@ pub fn get_similar_image_groups(
             .len()
             .cmp(&a.files.len())
             .then(a.max_distance.cmp(&b.max_distance))
+            // Groups come out of a HashMap, so without this tiebreaker
+            // groups of equal size/distance shuffle on every reload.
+            .then_with(|| a.id.cmp(&b.id))
     });
 
     Ok(SimilarImageGroupsResult {
