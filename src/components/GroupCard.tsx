@@ -18,10 +18,10 @@ export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepInde
   const ext = fileExt(keptFile.path) || group.file_type.toUpperCase()
   const reclaim = reclaimableBytes(group)
 
-  const keepNewest = () => {
+  const keepOldest = () => {
     let best = 0
     group.files.forEach((f, i) => {
-      if (f.mtime > group.files[best].mtime) best = i
+      if (f.mtime < group.files[best].mtime) best = i
     })
     onSetKeepIndex(best)
   }
@@ -85,11 +85,11 @@ export function GroupCard({ group, ui, onToggleOpen, onToggleSkip, onSetKeepInde
           <div className="flex items-center gap-3.5 py-2.5 pl-[74px] pr-3.5 text-xs" style={{ color: 'var(--ink3)' }}>
             <div className="flex-1">{t('groupCard.pickCopy')}</div>
             <button
-              onClick={keepNewest}
+              onClick={keepOldest}
               className="rounded-md px-2 py-[3px] text-xs"
               style={{ color: 'var(--accent)' }}
             >
-              {t('groupCard.keepNewest')}
+              {t('groupCard.keepOldest')}
             </button>
             <button
               onClick={() => onSetKeepIndex(null)}

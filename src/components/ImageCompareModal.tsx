@@ -66,10 +66,10 @@ export function ImageCompareModal({
 
   const columns = columnsFor(n)
 
-  const keepNewest = () => {
+  const keepOldest = () => {
     let best = 0
     group.files.forEach((f, i) => {
-      if (f.mtime > group.files[best].mtime) best = i
+      if (f.mtime < group.files[best].mtime) best = i
     })
     onSetKeptIndices(new Set([best]))
   }
@@ -125,11 +125,11 @@ export function ImageCompareModal({
             style={{ border: '1px solid var(--line)', background: 'var(--bg2)' }}
           >
             <button
-              onClick={keepNewest}
+              onClick={keepOldest}
               className="whitespace-nowrap px-3 py-1.5 text-xs transition-colors hover:brightness-[0.95]"
               style={{ color: 'var(--ink)' }}
             >
-              {t('groupCard.keepNewest')}
+              {t('groupCard.keepOldest')}
             </button>
             <div style={{ width: 1, background: 'var(--line)' }} />
             <button

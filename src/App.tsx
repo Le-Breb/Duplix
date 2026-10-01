@@ -285,7 +285,7 @@ export default function App() {
   }
 
   // Sets (replaces, doesn't merge) which photos in one group are kept — the
-  // only mutation the Images tab needs: "keep newest" / "keep shortest
+  // only mutation the Images tab needs: "keep oldest" / "keep shortest
   // path" / "select all" / "select none" / toggling one photo all reduce to
   // "here is the new complete set of kept indices."
   function setImageKeptIndices(id: string, keptIndices: Set<number>) {

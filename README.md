@@ -318,7 +318,7 @@ walk, triggered right after the Images tab's own scan finishes:
    full-size photo with prev/next navigation (arrow buttons, arrow keys).
    Every photo's "Keep"/"→ Trash" pill toggles independently (checkbox
    semantics, not radio) — the user can keep an arbitrary subset of a
-   group's photos, not just exactly one or all of them. "Keep newest" and
+   group's photos, not just exactly one or all of them. "Keep oldest" and
    "Keep shortest path" replace the whole kept set with a single index (the
    common case, one click); "Keep all in this set" toggles between
    everything and nothing kept.
@@ -584,7 +584,7 @@ cd src-tauri && cargo check   # type-check the Rust side
   the same underlying job (look at the group's photos, decide which to
   keep) at two different sizes was confusing and redundant. Clicking a
   group row now opens `ImageCompareModal` directly, with the pick-which-
-  to-keep controls (`Keep newest` / `Keep shortest path` / `Keep all in this
+  to-keep controls (`Keep oldest` / `Keep shortest path` / `Keep all in this
   set`) moved into its header — one place to look, one place to decide.
 - **`ImageCompareModal` renders through a React portal to `document.body`,
   not in place** — it's mounted from inside a group row, and `ImagesScreen`
