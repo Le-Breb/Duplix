@@ -74,8 +74,15 @@ export function ImageCompareModal({
     onSetKeptIndices(new Set([best]))
   }
 
+  // Keeping everything settles the set, so return to the list — same as
+  // trashing it now does. "Keep none" stays open so the user can pick again.
   const toggleKeepAll = () => {
-    onSetKeptIndices(allKept ? new Set() : new Set(group.files.map((_, i) => i)))
+    if (allKept) {
+      onSetKeptIndices(new Set())
+    } else {
+      onSetKeptIndices(new Set(group.files.map((_, i) => i)))
+      onClose()
+    }
   }
 
   // Every photo's "keep" state toggles independently of the others — this is
