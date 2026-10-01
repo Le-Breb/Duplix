@@ -24,7 +24,7 @@ import {
   type ImageIndexProgress,
   type SimilarImageGroup,
 } from './lib/api'
-import { defaultKeepIndex, resolveKeptIndices, type GroupUiState, type ImageGroupUiState } from './lib/groups'
+import { defaultKeepIndex, orderLikePrevious, resolveKeptIndices, type GroupUiState, type ImageGroupUiState } from './lib/groups'
 
 type Screen = 'home' | 'scanning' | 'results' | 'empty' | 'error' | 'done'
 // Mirrors `Screen` above — the Images tab is its own independent
@@ -181,12 +181,18 @@ export default function App() {
     }))
   }
 
-  async function loadImageGroups(threshold: number, root: string, includeOther: boolean) {
-    setImagesLoading(true)
+  // `keepOrder` is for reloading after trashing photos: the backend sorts by
+  // group size, so a group that just lost a photo would jump down the list
+  // (and everything after it would shift), leaving the user unsure which
+  // groups they've already reviewed. Instead, each group keeps the position
+  // of the group it came from, and the reload skips the loading state so
+  // the list stays mounted and the scroll position doesn't reset to the top.
+  async function loadImageGroups(threshold: number, root: string, includeOther: boolean, keepOrder = false) {
+    if (!keepOrder) setImagesLoading(true)
     setImagesError('')
     try {
       const res = await getSimilarImageGroups(threshold, includeOther ? null : root)
-      setImageGroups(res.groups)
+      setImageGroups((prev) => (keepOrder ? orderLikePrevious(prev, res.groups) : res.groups))
       setImagesIndexedCount(res.indexed_count)
     } catch (e) {
       setImagesError(String(e))
@@ -320,7 +326,7 @@ export default function App() {
       const reclaimedBytes = outcome.trashed.reduce((sum, p) => sum + (sizeByPath.get(p) ?? 0), 0)
       setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes, failed: outcome.failed })
       setShowImageConfirm(false)
-      await loadImageGroups(imageThreshold, imagesRootPath, includeOtherFolders)
+      await loadImageGroups(imageThreshold, imagesRootPath, includeOtherFolders, true)
     } catch (e) {
       setImagesError(String(e))
     } finally {
@@ -343,7 +349,7 @@ export default function App() {
       const outcome = await trashFiles(toTrash)
       const reclaimedBytes = outcome.trashed.reduce((sum, p) => sum + (sizeByPath.get(p) ?? 0), 0)
       setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes, failed: outcome.failed })
-      await loadImageGroups(imageThreshold, imagesRootPath, includeOtherFolders)
+      await loadImageGroups(imageThreshold, imagesRootPath, includeOtherFolders, true)
     } catch (e) {
       setImagesError(String(e))
     } finally {
