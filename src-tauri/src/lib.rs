@@ -47,6 +47,8 @@ pub fn run() {
             commands::get_similar_image_groups,
             commands::get_image_thumbnail,
             commands::start_image_indexing,
+            commands::mark_image_groups_reviewed,
+            commands::unmark_image_group_reviewed,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

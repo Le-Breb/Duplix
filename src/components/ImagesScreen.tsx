@@ -20,7 +20,11 @@ interface ImagesScreenProps {
   onChangeThreshold: (value: number) => void
   includeOtherFolders: boolean
   onToggleIncludeOtherFolders: (value: boolean) => void
+  hideReviewed: boolean
+  onToggleHideReviewed: (value: boolean) => void
   onSetKeptIndices: (id: string, keptIndices: Set<number>) => void
+  onKeepAll: (group: SimilarImageGroup) => void
+  onUnmarkReviewed: (group: SimilarImageGroup) => void
   showConfirm: boolean
   onOpenConfirm: () => void
   onCloseConfirm: () => void
@@ -53,7 +57,11 @@ export function ImagesScreen({
   onChangeThreshold,
   includeOtherFolders,
   onToggleIncludeOtherFolders,
+  hideReviewed,
+  onToggleHideReviewed,
   onSetKeptIndices,
+  onKeepAll,
+  onUnmarkReviewed,
   showConfirm,
   onOpenConfirm,
   onCloseConfirm,
@@ -68,6 +76,12 @@ export function ImagesScreen({
   const [sliderValue, setSliderValue] = useState(threshold)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  const reviewedCount = useMemo(() => groups.filter((g) => g.reviewed).length, [groups])
+  const visibleGroups = useMemo(
+    () => (hideReviewed ? groups.filter((g) => !g.reviewed) : groups),
+    [groups, hideReviewed],
+  )
+
   // The group list is virtualized: with hundreds of groups, keeping every
   // one of them mounted made every scroll frame pay for laying out and
   // painting elements nowhere near the viewport. Only rows actually near the
@@ -77,7 +91,7 @@ export function ImagesScreen({
   // is kept anyway as a defensive correction, cheap since it won't find
   // anything to correct.
   const rowVirtualizer = useVirtualizer({
-    count: groups.length,
+    count: visibleGroups.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 74,
     overscan: 6,
@@ -106,7 +120,7 @@ export function ImagesScreen({
     let keptCount = 0
     let reclaimBytes = 0
     for (const g of groups) {
-      const kept = resolveKeptIndices(g.files, groupUi[g.id])
+      const kept = resolveKeptIndices(g, groupUi[g.id])
       g.files.forEach((f, i) => {
         if (kept.has(i)) {
           keptCount += 1
@@ -140,7 +154,13 @@ export function ImagesScreen({
               </button>
             </div>
             <div className="mt-[7px] text-xl tracking-[-0.01em]" style={{ color: 'var(--ink)' }}>
-              {t('images.setsCount', groups.length)}
+              {t('images.setsCount', groups.length - reviewedCount)}
+              {reviewedCount > 0 && (
+                <span className="text-sm" style={{ color: 'var(--ink3)' }}>
+                  {' '}
+                  {t('images.reviewedCount', reviewedCount)}
+                </span>
+              )}
             </div>
             <div className="mt-[5px] text-[13px]" style={{ color: 'var(--ink2)' }}>
               {t('images.groupedDescription')}
@@ -193,6 +213,17 @@ export function ImagesScreen({
             style={{ accentColor: 'var(--accent)' }}
           />
           {t('images.includeOtherFolders')}
+        </label>
+
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-[12.5px]" style={{ color: 'var(--ink2)' }}>
+          <input
+            type="checkbox"
+            checked={hideReviewed}
+            onChange={(e) => onToggleHideReviewed(e.target.checked)}
+            className="accent-[var(--accent)]"
+            style={{ accentColor: 'var(--accent)' }}
+          />
+          {t('images.hideReviewed')}
         </label>
       </div>
 
@@ -289,10 +320,16 @@ export function ImagesScreen({
           </div>
         )}
 
-        {!loading && groups.length > 0 && (
+        {!loading && groups.length > 0 && visibleGroups.length === 0 && (
+          <div className="mt-10 text-center text-sm" style={{ color: 'var(--ink2)' }}>
+            {t('images.allReviewed')}
+          </div>
+        )}
+
+        {!loading && visibleGroups.length > 0 && (
           <div style={{ position: 'relative', height: rowVirtualizer.getTotalSize() }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const g = groups[virtualRow.index]
+              const g = visibleGroups[virtualRow.index]
               return (
                 <div
                   key={g.id}
@@ -311,6 +348,8 @@ export function ImagesScreen({
                     ui={groupUi[g.id] ?? EMPTY_UI}
                     rootPath={rootPath}
                     onSetKeptIndices={onSetKeptIndices}
+                    onKeepAll={onKeepAll}
+                    onUnmarkReviewed={onUnmarkReviewed}
                     onCommitGroup={onCommitGroup}
                     committing={committingGroupId === g.id}
                   />

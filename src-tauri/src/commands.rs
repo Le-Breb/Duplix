@@ -2,7 +2,7 @@ use crate::scanner;
 use crate::AppState;
 use rusqlite::params;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_dialog::DialogExt;
@@ -145,6 +145,17 @@ pub struct SimilarImageGroup {
     pub id: String,
     pub max_distance: u32,
     pub files: Vec<SimilarImageFile>,
+    /// The user already went through this exact set of photos (kept all of
+    /// them, or trashed some and kept the rest) in this or a past session.
+    pub reviewed: bool,
+}
+
+/// A similar-image group's id: a hash of its sorted paths, so the same set
+/// of photos gets the same id across reloads and sessions.
+fn image_group_id(paths: &[&str]) -> String {
+    let mut sorted = paths.to_vec();
+    sorted.sort();
+    blake3::hash(sorted.join("\n").as_bytes()).to_hex().to_string()
 }
 
 #[derive(Serialize)]
@@ -276,6 +287,19 @@ pub fn get_similar_image_groups(
         }
     };
 
+    let reviewed_ids: HashSet<String> = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let mut stmt = db
+            .prepare("SELECT id FROM reviewed_image_groups")
+            .map_err(|e| e.to_string())?;
+        let ids = stmt
+            .query_map([], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .filter_map(Result::ok)
+            .collect();
+        ids
+    };
+
     let n = rows.len();
     let dist = |a: usize, b: usize| ((rows[a].3 as u64) ^ (rows[b].3 as u64)).count_ones();
 
@@ -314,9 +338,9 @@ pub fn get_similar_image_groups(
                 }
             }
 
-            let mut sorted_paths: Vec<&str> = clique.iter().map(|&i| rows[i].0.as_str()).collect();
-            sorted_paths.sort();
-            let id = blake3::hash(sorted_paths.join("\n").as_bytes()).to_hex().to_string();
+            let paths: Vec<&str> = clique.iter().map(|&i| rows[i].0.as_str()).collect();
+            let id = image_group_id(&paths);
+            let reviewed = reviewed_ids.contains(&id);
 
             let files = clique
                 .iter()
@@ -331,21 +355,58 @@ pub fn get_similar_image_groups(
                 id,
                 max_distance: max_dist,
                 files,
+                reviewed,
             });
         }
     }
 
+    // Reviewed groups go last, so what's left to do stays at the top.
     groups.sort_by(|a, b| {
-        b.files
-            .len()
-            .cmp(&a.files.len())
+        a.reviewed
+            .cmp(&b.reviewed)
+            .then(b.files.len().cmp(&a.files.len()))
             .then(a.max_distance.cmp(&b.max_distance))
+            // Groups come out of a HashMap, so without this tiebreaker
+            // groups of equal size/distance shuffle on every reload.
+            .then_with(|| a.id.cmp(&b.id))
     });
 
     Ok(SimilarImageGroupsResult {
         groups,
         indexed_count: n as u32,
     })
+}
+
+/// Marks each given set of photos as a reviewed group. Takes paths rather
+/// than ids so the frontend can mark what's left of a group after trashing
+/// some of it — that leftover set doesn't exist as a group (or have an id)
+/// until the next reload.
+#[tauri::command]
+pub fn mark_image_groups_reviewed(
+    state: State<AppState>,
+    groups: Vec<Vec<String>>,
+) -> Result<(), String> {
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+    let now = scanner::now_unix();
+    for paths in groups.iter().filter(|p| p.len() >= 2) {
+        let paths: Vec<&str> = paths.iter().map(String::as_str).collect();
+        tx.execute(
+            "INSERT INTO reviewed_image_groups (id, reviewed_at) VALUES (?1, ?2)
+             ON CONFLICT(id) DO UPDATE SET reviewed_at = excluded.reviewed_at",
+            params![image_group_id(&paths), now],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn unmark_image_group_reviewed(state: State<AppState>, id: String) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute("DELETE FROM reviewed_image_groups WHERE id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[derive(Serialize, Clone)]

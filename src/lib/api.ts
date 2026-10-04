@@ -39,6 +39,7 @@ export interface SimilarImageGroup {
   id: string
   max_distance: number
   files: SimilarImageFile[]
+  reviewed: boolean
 }
 
 export interface SimilarImageGroupsResult {
@@ -83,6 +84,15 @@ export function getSimilarImageGroups(
   root: string | null,
 ): Promise<SimilarImageGroupsResult> {
   return invoke('get_similar_image_groups', { maxDistance, root })
+}
+
+// Each entry is one group's set of paths (sets of fewer than 2 are ignored).
+export function markImageGroupsReviewed(groups: string[][]): Promise<void> {
+  return invoke('mark_image_groups_reviewed', { groups })
+}
+
+export function unmarkImageGroupReviewed(id: string): Promise<void> {
+  return invoke('unmark_image_group_reviewed', { id })
 }
 
 export function getImageThumbnail(path: string, maxSize: number): Promise<string> {
