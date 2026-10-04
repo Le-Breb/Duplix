@@ -11,6 +11,7 @@ interface ImageCompareModalProps {
   ui: ImageGroupUiState
   rootPath: string
   onSetKeptIndices: (keptIndices: Set<number>) => void
+  onKeepAll: () => void
   onCommitNow: () => void
   committing: boolean
   onClose: () => void
@@ -38,13 +39,14 @@ export function ImageCompareModal({
   ui,
   rootPath,
   onSetKeptIndices,
+  onKeepAll,
   onCommitNow,
   committing,
   onClose,
 }: ImageCompareModalProps) {
   const { t, language } = useTranslation()
   const [zoomedIndex, setZoomedIndex] = useState<number | null>(null)
-  const kept = resolveKeptIndices(group.files, ui)
+  const kept = resolveKeptIndices(group, ui)
   const n = group.files.length
   const allKept = kept.size === n
   const noneKept = kept.size === 0
@@ -74,13 +76,14 @@ export function ImageCompareModal({
     onSetKeptIndices(new Set([best]))
   }
 
-  // Keeping everything settles the set, so return to the list — same as
-  // trashing it now does. "Keep none" stays open so the user can pick again.
+  // Keeping everything settles the set (and marks it reviewed), so return to
+  // the list — same as trashing it now does. "Keep none" stays open so the
+  // user can pick again.
   const toggleKeepAll = () => {
     if (allKept) {
       onSetKeptIndices(new Set())
     } else {
-      onSetKeptIndices(new Set(group.files.map((_, i) => i)))
+      onKeepAll()
       onClose()
     }
   }

@@ -126,6 +126,9 @@ const en = {
   'images.noPhotosDescription':
     'This folder doesn\'t have any photos Duplix can decode. Check "include photos from folders scanned before" to widen the search, or choose a different folder.',
   'images.noSimilarFound': 'No similar photos found at this sensitivity. Try loosening it.',
+  'images.reviewedCount': (n: number) => `· ${n.toLocaleString()} already reviewed`,
+  'images.hideReviewed': 'Hide sets already reviewed',
+  'images.allReviewed': 'Every set here has already been reviewed.',
 
   'imageGroupCard.similarityIdentical': 'Identical',
   'imageGroupCard.similarityNearlyIdentical': 'Nearly identical',
@@ -137,6 +140,8 @@ const en = {
   'imageGroupCard.trashingAll': 'TRASHING ALL',
   'imageGroupCard.trashing': 'Trashing…',
   'imageGroupCard.compare': 'Compare',
+  'imageGroupCard.reviewed': 'REVIEWED',
+  'imageGroupCard.unmarkReviewed': 'Unmark',
 
   'compareModal.allWillBeTrashed': (n: number) => `${n} similar photo${n === 1 ? '' : 's'} · all will be trashed`,
   'compareModal.someToKeep': (n: number, keepCount: number) =>
@@ -254,6 +259,9 @@ const fr: Record<keyof typeof en, Entry> = {
   'images.noPhotosDescription':
     'Ce dossier ne contient aucune photo que Duplix peut décoder. Cochez « inclure aussi les photos des dossiers déjà analysés » pour élargir la recherche, ou choisissez un autre dossier.',
   'images.noSimilarFound': 'Aucune photo similaire trouvée à cette sensibilité. Essayez de la réduire.',
+  'images.reviewedCount': (n: number) => `· ${n.toLocaleString()} déjà vérifié${n <= 1 ? '' : 's'}`,
+  'images.hideReviewed': 'Masquer les ensembles déjà vérifiés',
+  'images.allReviewed': 'Tous les ensembles ont déjà été vérifiés.',
 
   'imageGroupCard.similarityIdentical': 'Identique',
   'imageGroupCard.similarityNearlyIdentical': 'Presque identique',
@@ -265,6 +273,8 @@ const fr: Record<keyof typeof en, Entry> = {
   'imageGroupCard.trashingAll': 'TOUT À LA CORBEILLE',
   'imageGroupCard.trashing': 'Suppression…',
   'imageGroupCard.compare': 'Comparer',
+  'imageGroupCard.reviewed': 'VÉRIFIÉ',
+  'imageGroupCard.unmarkReviewed': 'Annuler',
 
   'compareModal.allWillBeTrashed': (n: number) =>
     `${n} photo${n <= 1 ? '' : 's'} similaire${n <= 1 ? '' : 's'} · ${n <= 1 ? 'elle sera supprimée' : 'toutes seront supprimées'}`,

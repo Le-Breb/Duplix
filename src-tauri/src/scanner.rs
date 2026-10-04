@@ -138,7 +138,7 @@ pub fn root_prefix(root: &str) -> String {
     format!("{}{}", root.trim_end_matches(MAIN_SEPARATOR), MAIN_SEPARATOR)
 }
 
-fn now_unix() -> i64 {
+pub fn now_unix() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)

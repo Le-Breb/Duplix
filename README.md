@@ -343,6 +343,18 @@ walk, triggered right after the Images tab's own scan finishes:
    refresh the list from the cache, so a committed group simply disappears
    (its "kept" photo usually no longer matches anything, or the group drops
    below 2 members) rather than needing bespoke local list surgery.
+10. **Reviewed groups are remembered across sessions** in the
+   `reviewed_image_groups` table, keyed by the group id (a hash of its
+   sorted paths). A group is marked reviewed when the user keeps all of it
+   in the compare view, or when photos are trashed from it and 2+ remain
+   (`mark_image_groups_reviewed` takes those leftover paths, since that set
+   only becomes a group on the next reload). Reviewed groups sort last,
+   render grayed out with a "Reviewed" badge and an "Unmark" button, can be
+   hidden with "Hide sets already reviewed", and default to keeping every
+   photo so a later "Move to Trash…" never undoes the decision. Because the
+   id depends on exact membership, a group that gains a new similar photo
+   (or regroups at another threshold) shows up as unreviewed again —
+   there's something new to look at.
 
 ## SQLite cache
 

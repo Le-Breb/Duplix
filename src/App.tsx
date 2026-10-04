@@ -17,14 +17,22 @@ import {
   onScanComplete,
   onScanProgress,
   pickFolder,
+  markImageGroupsReviewed,
   startImageIndexing,
   startScan,
   trashFiles,
+  unmarkImageGroupReviewed,
   type DuplicateGroup,
   type ImageIndexProgress,
   type SimilarImageGroup,
 } from './lib/api'
-import { defaultKeepIndex, resolveKeptIndices, type GroupUiState, type ImageGroupUiState } from './lib/groups'
+import {
+  defaultKeepIndex,
+  resolveKeptIndices,
+  sortImageGroups,
+  type GroupUiState,
+  type ImageGroupUiState,
+} from './lib/groups'
 
 type Screen = 'home' | 'scanning' | 'results' | 'empty' | 'error' | 'done'
 // Mirrors `Screen` above — the Images tab is its own independent
@@ -80,6 +88,7 @@ export default function App() {
   const [imagesCurrentPath, setImagesCurrentPath] = useState('')
   const [imagesScanError, setImagesScanError] = useState('')
   const [includeOtherFolders, setIncludeOtherFolders] = useState(false)
+  const [hideReviewed, setHideReviewed] = useState(false)
   const [imageThreshold, setImageThreshold] = useState(6)
   const [imageGroups, setImageGroups] = useState<SimilarImageGroup[]>([])
   const [imageGroupUi, setImageGroupUi] = useState<Record<string, ImageGroupUiState>>({})
@@ -293,6 +302,48 @@ export default function App() {
   // "here is the new complete set of kept indices."
   function setImageKeptIndices(id: string, keptIndices: Set<number>) {
     setImageGroupUi((prev) => ({ ...prev, [id]: { keptIndices } }))
+    // Changing what's kept in a reviewed group means it's being reviewed
+    // again, so it shouldn't stay grayed out at the bottom of the list.
+    const group = imageGroups.find((g) => g.id === id)
+    if (group?.reviewed && keptIndices.size !== group.files.length) setImageGroupReviewed(group, false)
+  }
+
+  // Updates the flag locally (and re-sorts, reviewed last) instead of
+  // reloading, which would recompute every group just to flip one boolean.
+  async function setImageGroupReviewed(group: SimilarImageGroup, reviewed: boolean) {
+    try {
+      if (reviewed) await markImageGroupsReviewed([group.files.map((f) => f.path)])
+      else await unmarkImageGroupReviewed(group.id)
+      setImageGroups((prev) => sortImageGroups(prev.map((g) => (g.id === group.id ? { ...g, reviewed } : g))))
+    } catch (e) {
+      setImagesError(String(e))
+    }
+  }
+
+  function handleKeepAllImages(group: SimilarImageGroup) {
+    setImageGroupUi((prev) => ({ ...prev, [group.id]: { keptIndices: new Set(group.files.keys()) } }))
+    setImageGroupReviewed(group, true)
+  }
+
+  // Un-reviewing keeps every photo selected (what "reviewed" implied), rather
+  // than silently falling back to the keep-one default and queuing the rest
+  // for the next "Move to trash".
+  function handleUnmarkImagesReviewed(group: SimilarImageGroup) {
+    setImageGroupUi((prev) =>
+      prev[group.id]?.keptIndices ? prev : { ...prev, [group.id]: { keptIndices: new Set(group.files.keys()) } },
+    )
+    setImageGroupReviewed(group, false)
+  }
+
+  // After trashing, whatever's left of each group the user acted on (2+
+  // photos they chose to keep) has been reviewed — mark it so it shows up
+  // that way once the reload regroups it.
+  async function markLeftoversReviewed(groups: SimilarImageGroup[], trashed: string[]) {
+    const trashedSet = new Set(trashed)
+    const leftovers = groups
+      .filter((g) => g.files.some((f) => trashedSet.has(f.path)))
+      .map((g) => g.files.map((f) => f.path).filter((p) => !trashedSet.has(p)))
+    await markImageGroupsReviewed(leftovers)
   }
 
   function handleChangeImageThreshold(value: number) {
@@ -312,7 +363,7 @@ export default function App() {
 
     for (const g of imageGroups) {
       g.files.forEach((f) => sizeByPath.set(f.path, f.size))
-      const kept = resolveKeptIndices(g.files, imageGroupUi[g.id])
+      const kept = resolveKeptIndices(g, imageGroupUi[g.id])
       g.files.forEach((f, i) => {
         if (!kept.has(i)) toTrash.push(f.path)
       })
@@ -323,6 +374,7 @@ export default function App() {
       const reclaimedBytes = outcome.trashed.reduce((sum, p) => sum + (sizeByPath.get(p) ?? 0), 0)
       setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes, failed: outcome.failed })
       setShowImageConfirm(false)
+      await markLeftoversReviewed(imageGroups, outcome.trashed)
       await loadImageGroups(imageThreshold, imagesRootPath, includeOtherFolders, true)
     } catch (e) {
       setImagesError(String(e))
@@ -336,7 +388,7 @@ export default function App() {
   // multiple sessions instead of needing to review every group before
   // anything can be committed.
   async function handleCommitGroupNow(group: SimilarImageGroup) {
-    const kept = resolveKeptIndices(group.files, imageGroupUi[group.id])
+    const kept = resolveKeptIndices(group, imageGroupUi[group.id])
     const toTrash = group.files.filter((_, i) => !kept.has(i)).map((f) => f.path)
     if (toTrash.length === 0) return
 
@@ -346,6 +398,7 @@ export default function App() {
       const outcome = await trashFiles(toTrash)
       const reclaimedBytes = outcome.trashed.reduce((sum, p) => sum + (sizeByPath.get(p) ?? 0), 0)
       setImageResult({ trashedCount: outcome.trashed.length, reclaimedBytes, failed: outcome.failed })
+      await markLeftoversReviewed([group], outcome.trashed)
       await loadImageGroups(imageThreshold, imagesRootPath, includeOtherFolders, true)
     } catch (e) {
       setImagesError(String(e))
@@ -488,7 +541,11 @@ export default function App() {
                 onChangeThreshold={handleChangeImageThreshold}
                 includeOtherFolders={includeOtherFolders}
                 onToggleIncludeOtherFolders={handleToggleIncludeOtherFolders}
+                hideReviewed={hideReviewed}
+                onToggleHideReviewed={setHideReviewed}
                 onSetKeptIndices={setImageKeptIndices}
+                onKeepAll={handleKeepAllImages}
+                onUnmarkReviewed={handleUnmarkImagesReviewed}
                 showConfirm={showImageConfirm}
                 onOpenConfirm={() => setShowImageConfirm(true)}
                 onCloseConfirm={() => setShowImageConfirm(false)}

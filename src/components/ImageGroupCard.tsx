@@ -16,6 +16,8 @@ interface ImageGroupCardProps {
   // what lets it stay referentially stable across its scroll-driven
   // re-renders (see the comment on React.memo below).
   onSetKeptIndices: (id: string, keptIndices: Set<number>) => void
+  onKeepAll: (group: SimilarImageGroup) => void
+  onUnmarkReviewed: (group: SimilarImageGroup) => void
   onCommitGroup: (group: SimilarImageGroup) => void
   committing: boolean
 }
@@ -49,12 +51,14 @@ export const ImageGroupCard = memo(function ImageGroupCard({
   ui,
   rootPath,
   onSetKeptIndices,
+  onKeepAll,
+  onUnmarkReviewed,
   onCommitGroup,
   committing,
 }: ImageGroupCardProps) {
   const { t } = useTranslation()
   const [comparing, setComparing] = useState(false)
-  const kept = resolveKeptIndices(group.files, ui)
+  const kept = resolveKeptIndices(group, ui)
   const allKept = kept.size === group.files.length
   const noneKept = kept.size === 0
   const previewFile = group.files[noneKept ? 0 : [...kept][0]]
@@ -62,13 +66,16 @@ export const ImageGroupCard = memo(function ImageGroupCard({
 
   return (
     <div
-      className="mt-2.5 overflow-hidden rounded-[9px]"
-      style={{ border: '1px solid var(--line)', background: 'var(--panel)' }}
+      className="mt-2.5 flex items-center overflow-hidden rounded-[9px]"
+      style={{ border: '1px solid var(--line)', background: group.reviewed ? 'var(--bg)' : 'var(--panel)' }}
     >
+      {/* Grayed out, not hidden: the user can still reopen it, and see at a
+          glance that it's already been dealt with (in this or a past session). */}
       <button
         onClick={() => setComparing(true)}
         disabled={committing}
-        className="flex w-full items-center gap-3.5 p-3 px-3.5 text-left hover:brightness-[0.98] disabled:cursor-default disabled:opacity-70"
+        className="flex min-w-0 flex-1 items-center gap-3.5 p-3 px-3.5 text-left hover:brightness-[0.98] disabled:cursor-default disabled:opacity-70"
+        style={group.reviewed ? { opacity: 0.55, filter: 'grayscale(0.7)' } : undefined}
       >
         <div
           className="h-[46px] w-[46px] flex-none overflow-hidden rounded-[5px]"
@@ -85,7 +92,14 @@ export const ImageGroupCard = memo(function ImageGroupCard({
             {kept.size > 1 && !allKept && t('imageGroupCard.toKeep', kept.size)}
           </div>
         </div>
-        {allKept ? (
+        {group.reviewed ? (
+          <div
+            className="rounded-full px-[9px] py-1 font-mono text-[10px] tracking-[0.06em]"
+            style={{ border: '1px solid var(--tint-line)', background: 'var(--tint)', color: 'var(--accent)' }}
+          >
+            {t('imageGroupCard.reviewed')}
+          </div>
+        ) : allKept ? (
           <div
             className="rounded-full px-[9px] py-1 font-mono text-[10px] tracking-[0.06em]"
             style={{ border: '1px solid var(--line)', color: 'var(--ink3)' }}
@@ -113,6 +127,15 @@ export const ImageGroupCard = memo(function ImageGroupCard({
           {committing ? t('imageGroupCard.trashing') : t('imageGroupCard.compare')}
         </div>
       </button>
+      {group.reviewed && (
+        <button
+          onClick={() => onUnmarkReviewed(group)}
+          className="flex-none self-stretch px-3.5 text-[11px] underline"
+          style={{ color: 'var(--ink3)' }}
+        >
+          {t('imageGroupCard.unmarkReviewed')}
+        </button>
+      )}
 
       {comparing && (
         <ImageCompareModal
@@ -120,6 +143,7 @@ export const ImageGroupCard = memo(function ImageGroupCard({
           ui={ui}
           rootPath={rootPath}
           onSetKeptIndices={(indices) => onSetKeptIndices(group.id, indices)}
+          onKeepAll={() => onKeepAll(group)}
           onCommitNow={() => onCommitGroup(group)}
           committing={committing}
           onClose={() => setComparing(false)}

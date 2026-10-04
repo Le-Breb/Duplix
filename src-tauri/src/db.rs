@@ -54,6 +54,18 @@ pub fn open(db_path: &Path) -> rusqlite::Result<Connection> {
         (),
     )?;
 
+    // Similar-image groups the user has already dealt with, keyed by the
+    // group id (a hash of the group's sorted paths). Because the id depends
+    // on exact membership, a group that gains a new photo, or gets split
+    // differently at another threshold, naturally shows up as unreviewed.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS reviewed_image_groups (
+            id TEXT PRIMARY KEY,
+            reviewed_at INTEGER NOT NULL
+        )",
+        (),
+    )?;
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
         (),
